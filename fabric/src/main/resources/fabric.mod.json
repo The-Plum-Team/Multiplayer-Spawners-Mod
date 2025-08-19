@@ -1,6 +1,6 @@
 {
     "schemaVersion": 1,
-    "id": "mod_id",
+    "id": "multiplayerspawners",
     "version": "${version}",
     "name": "${mod_name}",
     "description": "${description}",
@@ -20,8 +20,8 @@
         ]
     },
     "mixins": [
-        "${mod_id}.mixins.json",
-        "${mod_id}.fabric.mixins.json"
+        "multiplayerspawners.mixins.json",
+        "multiplayerspawners.fabric.mixins.json"
     ],
     "depends": {
         "fabricloader": ">=0.14",
@@ -33,4 +33,3 @@
         "another-mod": "*"
     }
 }
-  
