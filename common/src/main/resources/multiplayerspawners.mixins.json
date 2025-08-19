@@ -3,10 +3,13 @@
   "minVersion": "0.8",
   "package": "com.theplumteam.multiplayerspawners.mixin",
   "compatibilityLevel": "JAVA_17",
+  "refmap": "multiplayerspawners.refmap.json",
   "mixins": [
+    "BlockMixin",
+    "ServerPlayerGameModeMixin",
+    "BaseSpawnerMixin"
   ],
   "client": [
-    "MixinMinecraft"
   ],
   "injectors": {
     "defaultRequire": 1

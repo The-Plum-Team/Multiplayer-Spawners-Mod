@@ -1,8 +1,20 @@
 package com.theplumteam.multiplayerspawners.platform;
 
+import com.theplumteam.multiplayerspawners.Constants;
+import com.theplumteam.multiplayerspawners.config.FabricConfigRegistry;
 import com.theplumteam.multiplayerspawners.platform.services.IPlatformHelper;
-import net.fabricmc.api.EnvType;
+import com.theplumteam.multiplayerspawners.util.SpawnerPersistentData;
+import com.theplumteam.multiplayerspawners.util.FabricSpawnerPersistentData;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
+
+import java.util.function.Supplier;
 
 public class FabricPlatformHelper implements IPlatformHelper {
 
@@ -28,7 +40,30 @@ public class FabricPlatformHelper implements IPlatformHelper {
 
     @Override
     public <T> T get(Class<T> clazz) {
-        // This is a placeholder. You might need to implement actual service loading here.
         return null;
+    }
+
+    @Override
+    public <T extends Block> Supplier<T> registerBlock(String name, Supplier<T> block) {
+        T registeredBlock = Registry.register(BuiltInRegistries.BLOCK, new ResourceLocation(Constants.MOD_ID, name), block.get());
+        Registry.register(BuiltInRegistries.ITEM, new ResourceLocation(Constants.MOD_ID, name),
+                new BlockItem(registeredBlock, new Item.Properties()));
+        return () -> registeredBlock;
+    }
+
+    @Override
+    public <T extends Item> Supplier<T> registerItem(String name, Supplier<T> item) {
+        T registeredItem = Registry.register(BuiltInRegistries.ITEM, new ResourceLocation(Constants.MOD_ID, name), item.get());
+        return () -> registeredItem;
+    }
+
+    @Override
+    public SpawnerPersistentData getOrCreateSpawnerData(MinecraftServer server) {
+        return FabricSpawnerPersistentData.getOrCreate(server);
+    }
+
+    @Override
+    public void initializeConfig() {
+        FabricConfigRegistry.register();
     }
 }

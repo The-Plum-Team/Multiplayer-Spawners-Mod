@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "multiplayer_activated=false": {
+      "model": "minecraft:block/spawner"
+    },
+    "multiplayer_activated=true": {
+      "model": "multiplayerspawners:block/spawner_activated"
+    }
+  }
+}

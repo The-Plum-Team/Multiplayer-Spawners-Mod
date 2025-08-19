@@ -16,7 +16,7 @@
     "environment": "*",
     "entrypoints": {
         "main": [
-            "com.theplumteam.multiplayerspawners.ExampleMod"
+            "com.theplumteam.multiplayerspawners.MultiplayerSpawnersFabric"
         ]
     },
     "mixins": [
@@ -27,7 +27,8 @@
         "fabricloader": ">=0.14",
         "fabric": "*",
         "minecraft": "${minecraft_version}",
-        "java": ">=17"
+        "java": ">=17",
+        "forgeconfigapiport": ">=8.0.1"
     },
     "suggests": {
         "another-mod": "*"
