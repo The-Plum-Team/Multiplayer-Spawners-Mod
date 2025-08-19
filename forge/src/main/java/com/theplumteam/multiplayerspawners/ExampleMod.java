@@ -1,4 +1,4 @@
-package com.example.examplemod;
+package com.theplumteam.multiplayerspawners;
 
 import net.minecraftforge.fml.common.Mod;
 
