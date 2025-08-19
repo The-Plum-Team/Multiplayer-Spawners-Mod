@@ -13,7 +13,7 @@ public class ForgePlatformHelper implements IPlatformHelper {
 
     @Override
     public String getEnvironmentName() {
-        return FMLLoader.instance().getDist().name();
+        return FMLLoader.getNaming();
     }
 
     @Override

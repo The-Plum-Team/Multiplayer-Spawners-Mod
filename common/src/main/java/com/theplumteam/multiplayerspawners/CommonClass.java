@@ -1,6 +1,7 @@
 package com.theplumteam.multiplayerspawners;
 
 import com.theplumteam.multiplayerspawners.platform.Services;
+import com.theplumteam.multiplayerspawners.registry.ModBlocks;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Items;
 
@@ -15,6 +16,8 @@ public class CommonClass {
     // code that gets invoked by the entry point of the loader specific projects.
     public static void init() {
 
+        ModBlocks.initialize();
+        
         Constants.LOG.info("Hello from Common init on {}! we are currently in a {} environment!", Services.PLATFORM.getPlatformName(), Services.PLATFORM.getEnvironmentName());
         Constants.LOG.info("The ID for diamonds is {}", BuiltInRegistries.ITEM.getKey(Items.DIAMOND));
 
