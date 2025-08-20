@@ -6,7 +6,8 @@
   "mixins": [
   ],
   "client": [
-    "MixinTitleScreen"
+    "MixinTitleScreen",
+    "client.BaseSpawnerClientMixin"
   ],
   "injectors": {
     "defaultRequire": 1

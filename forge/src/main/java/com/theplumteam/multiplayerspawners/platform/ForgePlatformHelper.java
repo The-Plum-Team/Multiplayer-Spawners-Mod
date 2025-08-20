@@ -2,9 +2,9 @@ package com.theplumteam.multiplayerspawners.platform;
 
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.config.ForgeConfigRegistry;
+import com.theplumteam.multiplayerspawners.network.ForgeNetworkHandler;
+import com.theplumteam.multiplayerspawners.network.NetworkHandler;
 import com.theplumteam.multiplayerspawners.platform.services.IPlatformHelper;
-import com.theplumteam.multiplayerspawners.util.SpawnerPersistentData;
-import com.theplumteam.multiplayerspawners.util.ForgeSpawnerPersistentData;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.BlockItem;
@@ -69,12 +69,12 @@ public class ForgePlatformHelper implements IPlatformHelper {
     }
 
     @Override
-    public SpawnerPersistentData getOrCreateSpawnerData(MinecraftServer server) {
-        return ForgeSpawnerPersistentData.getOrCreate(server);
-    }
-
-    @Override
     public void initializeConfig() {
         ForgeConfigRegistry.register();
+    }
+    
+    @Override
+    public NetworkHandler createNetworkHandler() {
+        return new ForgeNetworkHandler();
     }
 }

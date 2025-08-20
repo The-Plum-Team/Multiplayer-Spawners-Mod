@@ -2,14 +2,13 @@ package com.theplumteam.multiplayerspawners.platform;
 
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.config.FabricConfigRegistry;
+import com.theplumteam.multiplayerspawners.network.FabricNetworkHandler;
+import com.theplumteam.multiplayerspawners.network.NetworkHandler;
 import com.theplumteam.multiplayerspawners.platform.services.IPlatformHelper;
-import com.theplumteam.multiplayerspawners.util.SpawnerPersistentData;
-import com.theplumteam.multiplayerspawners.util.FabricSpawnerPersistentData;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
@@ -58,12 +57,12 @@ public class FabricPlatformHelper implements IPlatformHelper {
     }
 
     @Override
-    public SpawnerPersistentData getOrCreateSpawnerData(MinecraftServer server) {
-        return FabricSpawnerPersistentData.getOrCreate(server);
-    }
-
-    @Override
     public void initializeConfig() {
         FabricConfigRegistry.register();
+    }
+    
+    @Override
+    public NetworkHandler createNetworkHandler() {
+        return new FabricNetworkHandler();
     }
 }

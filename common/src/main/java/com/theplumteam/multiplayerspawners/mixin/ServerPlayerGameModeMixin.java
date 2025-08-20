@@ -1,8 +1,9 @@
 package com.theplumteam.multiplayerspawners.mixin;
 
 import com.theplumteam.multiplayerspawners.Constants;
-import com.theplumteam.multiplayerspawners.block.SpawnerStateProperties;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
+import com.theplumteam.multiplayerspawners.network.NetworkHandler;
+import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import com.theplumteam.multiplayerspawners.util.SpawnerStateManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -10,6 +11,7 @@ import net.minecraft.server.level.ServerPlayerGameMode;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.SpawnerBlock;
+import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,6 +22,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.List;
+import java.util.Set;
 
 @Mixin(ServerPlayerGameMode.class)
 public abstract class ServerPlayerGameModeMixin {
@@ -31,17 +34,24 @@ public abstract class ServerPlayerGameModeMixin {
     private void multiplayerspawners$handleSpawnerInteraction(Level level, BlockPos pos, ServerPlayer player) {
         String playerName = player.getName().getString();
 
-        // This method is only called for spawners that are not yet "permanently disabled".
-        // Disable the spawner for this player.
+        // Disable the spawner for this player by writing to the Block Entity NBT.
         SpawnerStateManager.disableSpawnerForPlayer(level, pos, playerName);
         Constants.LOG.info("Spawner at {} has been permanently disabled by player {}", pos, playerName);
 
-        // Update the block state if it's not already in the disabled appearance.
-        // This makes it so the first person to disable it changes the model for everyone.
-        BlockState currentBlockState = level.getBlockState(pos);
-        if (currentBlockState.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED) && currentBlockState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
-            BlockState newBlockState = currentBlockState.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, false);
-            level.setBlock(pos, newBlockState, 3); // Flag 3 updates the client
+        // REMOVED: Server-side visual block state update
+        // The client will handle visual updates based on network packets
+        // This prevents the texture from changing for players who shouldn't see it disabled
+
+        // Send immediate network update to the disabling player first
+        multiplayerspawners$triggerImmediateClientFeedback(level, pos, player);
+
+        // Send network update to other tracking players
+        if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
+            SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
+            Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+
+            // Send to all players tracking this chunk (but the disabling player already got immediate feedback)
+            NetworkHandler.getInstance().sendSpawnerStateToTracking(level, pos, disabledPlayers);
         }
 
         // Group disabling functionality
@@ -55,6 +65,20 @@ public abstract class ServerPlayerGameModeMixin {
     }
 
     @Unique
+    private void multiplayerspawners$triggerImmediateClientFeedback(Level level, BlockPos pos, ServerPlayer player) {
+        // For the disabling player specifically, send immediate feedback packet
+        if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
+            SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
+            Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+
+            // Send immediate feedback to the player who disabled it
+            Constants.LOG.info("SERVER: Sending immediate feedback packet to player {} for spawner at {}",
+                    player.getName().getString(), pos);
+            NetworkHandler.getInstance().sendSpawnerStateToPlayer(player, pos, disabledPlayers, false);
+        }
+    }
+
+    @Unique
     private void multiplayerspawners$handleGroupDisabling(Level level, BlockPos spawnerPos, ServerPlayer triggeringPlayer, int radius) {
         AABB searchArea = new AABB(spawnerPos).inflate(radius);
         List<Player> nearbyPlayers = level.getEntitiesOfClass(Player.class, searchArea);
@@ -65,12 +89,9 @@ public abstract class ServerPlayerGameModeMixin {
             if (nearbyPlayer instanceof ServerPlayer serverPlayer && !nearbyPlayer.equals(triggeringPlayer)) {
                 String nearbyPlayerName = serverPlayer.getName().getString();
 
-                // Check if spawner is already disabled for this nearby player to avoid redundant logic/messages
                 if (!SpawnerStateManager.isSpawnerDisabledForPlayer(level, spawnerPos, nearbyPlayerName)) {
                     SpawnerStateManager.disableSpawnerForPlayer(level, spawnerPos, nearbyPlayerName);
                     playersAffected++;
-
-                    // Notify the affected player
                     serverPlayer.displayClientMessage(
                             net.minecraft.network.chat.Component.literal("§6A spawner in this area has been disabled by " + triggeringPlayer.getName().getString() + "."),
                             false
@@ -79,7 +100,14 @@ public abstract class ServerPlayerGameModeMixin {
             }
         }
 
-        if (playersAffected > 0) {
+        // Send network update after group disabling (only if other players were affected)
+        if (playersAffected > 0 && level.getBlockEntity(spawnerPos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
+            SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
+            Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+
+            // Send updated state to all tracking players (includes the triggering player and newly affected players)
+            NetworkHandler.getInstance().sendSpawnerStateToTracking(level, spawnerPos, disabledPlayers);
+
             triggeringPlayer.displayClientMessage(
                     net.minecraft.network.chat.Component.literal("§6Group disabling: Spawner disabled for " + playersAffected + " nearby player(s)."),
                     false
@@ -95,7 +123,6 @@ public abstract class ServerPlayerGameModeMixin {
         BlockState blockState = world.getBlockState(pos);
 
         if (blockState.getBlock() instanceof SpawnerBlock) {
-            // Check if this player has already disabled this spawner. If so, they just get the "unbreakable" message.
             if (SpawnerStateManager.isSpawnerDisabledForPlayer(world, pos, this.player.getName().getString())) {
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cThis spawner is permanently disabled and cannot be broken!"), true);
                 cir.setReturnValue(false);
@@ -103,23 +130,29 @@ public abstract class ServerPlayerGameModeMixin {
                 return;
             }
 
-            // If the spawner has been disabled by ANY player, it becomes unbreakable for everyone.
-            // This handles the case where Player B tries to break a spawner already disabled by Player A.
             if (SpawnerStateManager.isSpawnerDisabledByAnyone(world, pos)) {
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cThis spawner is permanently disabled and cannot be broken!"), true);
-                // We still want to disable it for THIS player too.
                 SpawnerStateManager.disableSpawnerForPlayer(world, pos, this.player.getName().getString());
+
+                // Send network update for this new player disabling (immediate feedback for this player)
+                multiplayerspawners$triggerImmediateClientFeedback(world, pos, this.player);
+
+                // Send to other tracking players
+                if (world.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
+                    SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
+                    Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+                    NetworkHandler.getInstance().sendSpawnerStateToTracking(world, pos, disabledPlayers);
+                }
+
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cIt will no longer spawn creatures while you are nearby."), true);
                 cir.setReturnValue(false);
                 cir.cancel();
                 return;
             }
 
-            // If it's the first time anyone is interacting, handle the disabling process.
             Constants.LOG.info("Player {} is disabling a spawner for the first time at {}. Intercepting.", player.getName().getString(), pos);
             multiplayerspawners$handleSpawnerInteraction(world, pos, this.player);
 
-            // Cancel the original block breaking event
             cir.setReturnValue(false);
             cir.cancel();
         }

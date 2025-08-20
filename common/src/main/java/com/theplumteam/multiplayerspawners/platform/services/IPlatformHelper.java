@@ -1,7 +1,6 @@
 package com.theplumteam.multiplayerspawners.platform.services;
 
-import com.theplumteam.multiplayerspawners.util.SpawnerPersistentData;
-import net.minecraft.server.MinecraftServer;
+import com.theplumteam.multiplayerspawners.network.NetworkHandler;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 
@@ -23,8 +22,9 @@ public interface IPlatformHelper {
 
     <T extends Item> Supplier<T> registerItem(String name, Supplier<T> item);
 
-    SpawnerPersistentData getOrCreateSpawnerData(MinecraftServer server);
+    // This method is removed as we now store data in the Block Entity NBT.
 
-    // NEW: Config initialization method
     void initializeConfig();
+    
+    NetworkHandler createNetworkHandler();
 }

@@ -1,6 +1,9 @@
 package com.theplumteam.multiplayerspawners;
 
+import com.theplumteam.multiplayerspawners.event.PlayerEventHandler;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 
 public class MultiplayerSpawnersFabric implements ModInitializer {
     
@@ -14,5 +17,25 @@ public class MultiplayerSpawnersFabric implements ModInitializer {
         // Use Fabric to bootstrap the Common mod.
         Constants.LOG.info("Hello Fabric world!");
         CommonClass.init();
+        
+        // Register event handlers
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+            PlayerEventHandler.onPlayerJoin(handler.getPlayer());
+        });
+        
+        ServerPlayerEvents.ALLOW_DEATH.register((player, damageSource, damageAmount) -> {
+            return true; // Allow death, we just want to hook the event
+        });
+        
+        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+            PlayerEventHandler.onPlayerRespawn(newPlayer);
+        });
+        
+        // For dimension changes, we use copy from event
+        ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) -> {
+            if (!alive) { // This indicates a dimension change rather than death
+                PlayerEventHandler.onPlayerChangeDimension(newPlayer);
+            }
+        });
     }
 }

@@ -1,5 +1,6 @@
 package com.theplumteam.multiplayerspawners.mixin;
 
+import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.block.SpawnerStateProperties;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SpawnerBlock;
@@ -15,13 +16,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Block.class)
 public abstract class BlockMixin {
 
-    // Debug
-    static {
-        System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-        System.out.println("!!!!!!!!!! BLOCKMIXIN IS LOADED BY JAVA !!!!!!!!!!");
-        System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-    }
-
     @Shadow public abstract BlockState defaultBlockState();
     @Shadow protected abstract void registerDefaultState(BlockState state);
 
@@ -35,19 +29,23 @@ public abstract class BlockMixin {
         Block thisBlock = (Block) (Object) this;
         if (thisBlock instanceof SpawnerBlock) {
             builder.add(SpawnerStateProperties.MULTIPLAYER_ACTIVATED);
+            Constants.LOG.info("BLOCK_MIXIN: Added MULTIPLAYER_ACTIVATED property to spawner block");
         }
     }
 
     /**
      * Injects into the end of the Block constructor.
      * After the original constructor has run, we check if the block is a SpawnerBlock.
-     * If it is, we register a new default state that includes our property set to 'true'.
+     * If it is, we register a new default state that includes our property.
+     * Default to true (active) - client will override based on player data.
      */
     @Inject(method = "<init>", at = @At("RETURN"))
     private void multiplayerspawners$setDefaultSpawnerState(BlockBehaviour.Properties properties, CallbackInfo ci) {
         Block thisBlock = (Block) (Object) this;
         if (thisBlock instanceof SpawnerBlock) {
+            // Default to active - the client-side renderer will handle the actual display
             this.registerDefaultState(this.defaultBlockState().setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, true));
+            Constants.LOG.info("BLOCK_MIXIN: Set default state for spawner block to MULTIPLAYER_ACTIVATED=true");
         }
     }
 }
