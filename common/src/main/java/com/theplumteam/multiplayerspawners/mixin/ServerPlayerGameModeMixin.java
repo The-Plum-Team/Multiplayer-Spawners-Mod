@@ -65,8 +65,7 @@ public abstract class ServerPlayerGameModeMixin {
             multiplayerspawners$handleGroupDisabling(level, pos, player, radius);
         }
 
-        // Send a message to the player
-        player.displayClientMessage(Component.literal("Multiplayer spawner permanently disabled! It can no longer be broken and will not spawn creatures while you are nearby.").withStyle(ChatFormatting.RED), false);
+        // No message when disabling spawner - feedback is provided through drops
     }
 
     @Unique
@@ -135,14 +134,27 @@ public abstract class ServerPlayerGameModeMixin {
     }
 
     @Unique
+    private void multiplayerspawners$dropSpawnerRewards(Level level, BlockPos pos, ServerPlayer player) {
+        BlockState blockState = level.getBlockState(pos);
+        if (blockState.getBlock() instanceof SpawnerBlock) {
+            // Drop experience like a normal spawner break
+            blockState.getBlock().playerWillDestroy(level, pos, blockState, player);
+            
+            // Drop any additional items that other mods might add to spawner drops
+            // This calls the block's dropResources method which handles mod compatibility
+            blockState.getBlock().dropResources(blockState, level, pos, level.getBlockEntity(pos), player, player.getMainHandItem());
+        }
+    }
+
+    @Unique
     private void multiplayerspawners$sendClickableBreakMessage(ServerPlayer player, BlockPos pos) {
-        // Create the main message
-        MutableComponent mainMessage = Component.literal("This spawner is permanently disabled and cannot be broken! ").withStyle(ChatFormatting.RED);
+        // Create the explanatory text
+        MutableComponent explanationMessage = Component.literal("The spawner is disabled for you and nearby players. Other players will have it active so they can enjoy the dungeon. ").withStyle(ChatFormatting.LIGHT_PURPLE);
         
         // Create the clickable part
         MutableComponent clickablePart = Component.literal("[Click here to break it]")
                 .withStyle(style -> style
-                        .withColor(ChatFormatting.GREEN)
+                        .withColor(ChatFormatting.RED)
                         .withBold(true)
                         .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, 
                                 "/multiplayerspawners allow_break " + pos.getX() + " " + pos.getY() + " " + pos.getZ()))
@@ -151,7 +163,7 @@ public abstract class ServerPlayerGameModeMixin {
                 );
         
         // Combine the messages
-        MutableComponent fullMessage = mainMessage.append(clickablePart);
+        MutableComponent fullMessage = explanationMessage.append(clickablePart);
         
         player.displayClientMessage(fullMessage, false);
     }
@@ -196,7 +208,12 @@ public abstract class ServerPlayerGameModeMixin {
                 return;
             }
 
-            Constants.LOG.info("Player {} is disabling a spawner for the first time at {}. Intercepting.", player.getName().getString(), pos);
+            Constants.LOG.info("Player {} is disabling a spawner for the first time at {}. Intercepting and dropping experience.", player.getName().getString(), pos);
+            
+            // Drop experience and items as if the spawner was broken normally
+            multiplayerspawners$dropSpawnerRewards(world, pos, this.player);
+            
+            // Then handle the spawner interaction (disable it)
             multiplayerspawners$handleSpawnerInteraction(world, pos, this.player);
 
             cir.setReturnValue(false);

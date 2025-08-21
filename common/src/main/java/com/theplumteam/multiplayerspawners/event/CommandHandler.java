@@ -53,8 +53,8 @@ public class CommandHandler {
                                                         return 0;
                                                     }
                                                     
-                                                    // Break the spawner directly
-                                                    world.destroyBlock(pos, true, player);
+                                                    // Break the spawner directly without dropping items/experience
+                                                    world.destroyBlock(pos, false, player);
                                                     
                                                     player.displayClientMessage(Component.literal("Spawner successfully broken and removed!").withStyle(ChatFormatting.GREEN), false);
                                                     Constants.LOG.info("Player {} broke disabled spawner at {} via command", player.getName().getString(), pos);
