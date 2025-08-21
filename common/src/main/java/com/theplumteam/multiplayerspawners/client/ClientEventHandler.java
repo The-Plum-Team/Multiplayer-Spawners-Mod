@@ -29,7 +29,7 @@ public class ClientEventHandler {
     }
 
     /**
-     * Called every client tick - now with smarter update logic
+     * Called every client tick - now with smarter update logic and spawner monitoring
      */
     public static void onClientTick() {
         var minecraft = Minecraft.getInstance();
@@ -47,8 +47,13 @@ public class ClientEventHandler {
             lastDimension = currentDimension;
         }
 
-        // Much less frequent periodic refresh - every 600 ticks (30 seconds)
         tickCounter++;
+
+        // Monitor and correct spawner states every tick for immediate response to texture resets
+        // This is the key fix for the break cancellation issue
+        ClientSpawnerData.monitorAndCorrectSpawnerStates();
+
+        // Much less frequent periodic refresh - every 600 ticks (30 seconds)
         if (tickCounter >= 600) {
             ClientSpawnerData.periodicRefresh();
             tickCounter = 0;

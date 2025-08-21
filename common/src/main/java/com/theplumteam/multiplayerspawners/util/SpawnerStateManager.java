@@ -68,4 +68,20 @@ public class SpawnerStateManager {
         }
         return false;
     }
+
+    /**
+     * Enables a spawner for a specific player (allows them to break it).
+     */
+    public static void enableSpawnerForPlayer(Level level, BlockPos pos, String playerName) {
+        if (level.isClientSide()) return;
+
+        SpawnerDataAccessor accessor = getAccessor(level, pos);
+        if (accessor != null) {
+            Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+            if (disabledPlayers.remove(playerName)) {
+                // Mark the block entity as dirty to ensure it saves
+                level.getBlockEntity(pos).setChanged();
+            }
+        }
+    }
 }

@@ -392,4 +392,74 @@ public class ClientSpawnerData {
             scheduleRetryUpdate(pos, isDisabled);
         }
     }
+
+    /**
+     * Monitors and corrects spawner states that have been reset (e.g., due to cancelled block breaks)
+     * This method scans spawners within a reasonable range and immediately corrects any that have wrong states
+     */
+    public static void monitorAndCorrectSpawnerStates() {
+        var minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || minecraft.player == null) {
+            return;
+        }
+
+        // Only check spawners within 32 blocks to avoid performance issues
+        int radius = 32;
+        var playerPos = minecraft.player.blockPosition();
+        
+        // Create a copy to avoid ConcurrentModificationException
+        var spawnersToCheck = new HashMap<>(playerDisabledSpawners);
+        var spawnersToRemove = new HashSet<BlockPos>();
+        
+        // Check only spawners we have data for within range
+        for (Map.Entry<BlockPos, Boolean> entry : spawnersToCheck.entrySet()) {
+            BlockPos spawnerPos = entry.getKey();
+            Boolean isDisabled = entry.getValue();
+            
+            // Skip if out of range
+            if (spawnerPos.distSqr(playerPos) > radius * radius) {
+                continue;
+            }
+            
+            // Check if spawner block state is incorrect
+            var currentState = minecraft.level.getBlockState(spawnerPos);
+            if (!(currentState.getBlock() instanceof SpawnerBlock)) {
+                // Spawner was broken/removed, mark for cleanup
+                spawnersToRemove.add(spawnerPos);
+                Constants.logVisualUpdate("Marked broken spawner at {} for removal", spawnerPos);
+                continue;
+            }
+            
+            if (!currentState.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
+                Constants.LOG.warn("CLIENT: Spawner at {} missing MULTIPLAYER_ACTIVATED property during monitoring", spawnerPos);
+                continue;
+            }
+            
+            boolean currentActivated = currentState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED);
+            boolean expectedActivated = !isDisabled; // Activated means NOT disabled
+            
+            // If state is incorrect, immediately fix it
+            if (currentActivated != expectedActivated) {
+                Constants.logVisualUpdate("MONITOR: Detected incorrect spawner state at {} - current: {}, expected: {}", 
+                    spawnerPos, currentActivated, expectedActivated);
+                
+                // Force immediate correction
+                var newState = currentState.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, expectedActivated);
+                minecraft.level.setBlock(spawnerPos, newState, 11); // Immediate update flag
+                
+                // Apply instant visual updates
+                forceInstantVisualUpdate(spawnerPos, currentState, newState);
+                
+                Constants.logVisualUpdate("MONITOR: Corrected spawner state at {} to MULTIPLAYER_ACTIVATED={}", 
+                    spawnerPos, expectedActivated);
+            }
+        }
+        
+        // Clean up removed spawners outside the iteration loop
+        for (BlockPos posToRemove : spawnersToRemove) {
+            playerDisabledSpawners.remove(posToRemove);
+            spawnersNeedingUpdate.remove(posToRemove);
+            Constants.logVisualUpdate("Removed data for broken spawner at {}", posToRemove);
+        }
+    }
 }

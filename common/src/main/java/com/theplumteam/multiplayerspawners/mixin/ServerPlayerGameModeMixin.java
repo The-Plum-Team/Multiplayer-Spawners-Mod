@@ -6,6 +6,10 @@ import com.theplumteam.multiplayerspawners.network.NetworkHandler;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import com.theplumteam.multiplayerspawners.util.SpawnerStateManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
 import net.minecraft.world.entity.player.Player;
@@ -117,6 +121,38 @@ public abstract class ServerPlayerGameModeMixin {
         }
     }
 
+    @Unique
+    private void multiplayerspawners$forceVisualStateRefresh(Level level, BlockPos pos, ServerPlayer player) {
+        if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
+            SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
+            Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+            
+            // Send immediate visual state refresh packet with high priority
+            Constants.logNetworkPacket("Sending forced visual refresh for cancelled break at {} to player {}", pos, player.getName().getString());
+            NetworkHandler.getInstance().sendSpawnerStateToPlayer(player, pos, disabledPlayers, true);
+        }
+    }
+
+    @Unique
+    private void multiplayerspawners$sendClickableBreakMessage(ServerPlayer player, BlockPos pos) {
+        // Create the main message
+        MutableComponent mainMessage = Component.literal("§cThis spawner is permanently disabled and cannot be broken! ");
+        
+        // Create the clickable part
+        MutableComponent clickablePart = Component.literal("§a§l[Click here to allow breaking]")
+                .withStyle(style -> style
+                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, 
+                                "/multiplayerspawners allow_break " + pos.getX() + " " + pos.getY() + " " + pos.getZ()))
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, 
+                                Component.literal("§eClick to allow yourself to break this spawner")))
+                );
+        
+        // Combine the messages
+        MutableComponent fullMessage = mainMessage.append(clickablePart);
+        
+        player.displayClientMessage(fullMessage, true);
+    }
+
     @Inject(method = "destroyBlock", at = @At("HEAD"), cancellable = true)
     private void multiplayerspawners$onAttemptDestroyBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
         Level world = this.player.serverLevel();
@@ -124,14 +160,18 @@ public abstract class ServerPlayerGameModeMixin {
 
         if (blockState.getBlock() instanceof SpawnerBlock) {
             if (SpawnerStateManager.isSpawnerDisabledForPlayer(world, pos, this.player.getName().getString())) {
-                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cThis spawner is permanently disabled and cannot be broken!"), true);
+                multiplayerspawners$sendClickableBreakMessage(this.player, pos);
+                
+                // Force immediate visual state refresh to prevent texture reset
+                multiplayerspawners$forceVisualStateRefresh(world, pos, this.player);
+                
                 cir.setReturnValue(false);
                 cir.cancel();
                 return;
             }
 
             if (SpawnerStateManager.isSpawnerDisabledByAnyone(world, pos)) {
-                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cThis spawner is permanently disabled and cannot be broken!"), true);
+                multiplayerspawners$sendClickableBreakMessage(this.player, pos);
                 SpawnerStateManager.disableSpawnerForPlayer(world, pos, this.player.getName().getString());
 
                 // Send network update for this new player disabling (immediate feedback for this player)
@@ -143,6 +183,9 @@ public abstract class ServerPlayerGameModeMixin {
                     Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
                     NetworkHandler.getInstance().sendSpawnerStateToTracking(world, pos, disabledPlayers);
                 }
+
+                // Force immediate visual state refresh to prevent texture reset
+                multiplayerspawners$forceVisualStateRefresh(world, pos, this.player);
 
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cIt will no longer spawn creatures while you are nearby."), true);
                 cir.setReturnValue(false);

@@ -1,7 +1,9 @@
 package com.theplumteam.multiplayerspawners;
 
+import com.theplumteam.multiplayerspawners.event.CommandHandler;
 import com.theplumteam.multiplayerspawners.event.PlayerEventHandler;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 
@@ -17,6 +19,11 @@ public class MultiplayerSpawnersFabric implements ModInitializer {
         // Use Fabric to bootstrap the Common mod.
         Constants.LOG.info("Hello Fabric world!");
         CommonClass.init();
+        
+        // Register commands
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+            CommandHandler.register(dispatcher);
+        });
         
         // Register event handlers
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {

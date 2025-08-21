@@ -1,10 +1,12 @@
 package com.theplumteam.multiplayerspawners;
 
 import com.theplumteam.multiplayerspawners.client.MultiplayerSpawnersForgeClient;
+import com.theplumteam.multiplayerspawners.event.CommandHandler;
 import com.theplumteam.multiplayerspawners.event.PlayerEventHandler;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.DistExecutor;
@@ -49,5 +51,10 @@ public class MultiplayerSpawnersForge {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
             PlayerEventHandler.onPlayerRespawn(serverPlayer);
         }
+    }
+    
+    @SubscribeEvent
+    public void onRegisterCommands(RegisterCommandsEvent event) {
+        CommandHandler.register(event.getDispatcher());
     }
 }
