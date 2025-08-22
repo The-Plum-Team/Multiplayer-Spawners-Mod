@@ -25,6 +25,8 @@ public interface IPlatformHelper {
     // This method is removed as we now store data in the Block Entity NBT.
 
     void initializeConfig();
+
+    void register();
     
     NetworkHandler createNetworkHandler();
 }

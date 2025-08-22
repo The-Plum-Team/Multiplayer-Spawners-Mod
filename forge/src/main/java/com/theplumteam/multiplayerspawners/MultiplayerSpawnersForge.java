@@ -3,6 +3,8 @@ package com.theplumteam.multiplayerspawners;
 import com.theplumteam.multiplayerspawners.client.MultiplayerSpawnersForgeClient;
 import com.theplumteam.multiplayerspawners.event.CommandHandler;
 import com.theplumteam.multiplayerspawners.event.PlayerEventHandler;
+import com.theplumteam.multiplayerspawners.platform.ForgePlatformHelper;
+import com.theplumteam.multiplayerspawners.platform.Services;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
@@ -24,6 +26,10 @@ public class MultiplayerSpawnersForge {
         // Use Forge to bootstrap the Common mod.
         Constants.LOG.info("Hello Forge world! MultiplayerSpawnersForge has been loaded!");
         CommonClass.init();
+
+        if (Services.PLATFORM instanceof ForgePlatformHelper) {
+            ((ForgePlatformHelper) Services.PLATFORM).register();
+        }
         
         // Initialize client-side code only on client
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> MultiplayerSpawnersForgeClient::init);

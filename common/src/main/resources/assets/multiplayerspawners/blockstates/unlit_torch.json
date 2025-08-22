@@ -1,0 +1,5 @@
+{
+    "variants": {
+        "": { "model": "multiplayerspawners:block/unlit_torch" }
+    }
+}

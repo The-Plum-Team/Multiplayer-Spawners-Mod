@@ -1,0 +1,8 @@
+{
+    "variants": {
+        "facing=east": { "model": "multiplayerspawners:block/unlit_torch_wall" },
+        "facing=north": { "model": "multiplayerspawners:block/unlit_torch_wall", "y": 270 },
+        "facing=south": { "model": "multiplayerspawners:block/unlit_torch_wall", "y": 90 },
+        "facing=west": { "model": "multiplayerspawners:block/unlit_torch_wall", "y": 180 }
+    }
+}

@@ -2,15 +2,22 @@ package com.theplumteam.multiplayerspawners.client;
 
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.network.FabricNetworkHandler;
+import com.theplumteam.multiplayerspawners.registration.ModBlocksItems;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.minecraft.client.renderer.RenderType;
 
 public class MultiplayerSpawnersFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        // Set the render layer for our transparent blocks
+        BlockRenderLayerMap.INSTANCE.putBlock(ModBlocksItems.UNLIT_TORCH.get(), RenderType.cutout());
+        BlockRenderLayerMap.INSTANCE.putBlock(ModBlocksItems.UNLIT_WALL_TORCH.get(), RenderType.cutout());
+
         // Initialize client-side network handler
         FabricNetworkHandler.initClient();
 

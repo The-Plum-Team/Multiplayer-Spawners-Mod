@@ -8,6 +8,14 @@ public class Constants {
 	public static final String MOD_NAME = "MultiplayerSpawners";
 	public static final Logger LOG = LoggerFactory.getLogger(MOD_NAME);
 
+	// REMOVED block and item suppliers from here to prevent premature initialization.
+	// They are now in the ModBlocksItems class.
+
+	public static void init() {
+		// This method is no longer needed to initialize blocks/items.
+		// It can be removed or left empty. For cleanliness, let's remove its content.
+	}
+
 	// Enhanced logging flags for debugging instant visual updates
 	public static final boolean DEBUG_VISUAL_UPDATES = Boolean.parseBoolean(System.getProperty("multiplayerspawners.debug.visual", "false"));
 	public static final boolean DEBUG_NETWORK_PACKETS = Boolean.parseBoolean(System.getProperty("multiplayerspawners.debug.network", "false"));

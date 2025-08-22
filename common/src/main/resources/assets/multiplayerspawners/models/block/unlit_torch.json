@@ -1,0 +1,6 @@
+{
+    "parent": "block/torch",
+    "textures": {
+        "torch": "multiplayerspawners:block/unlit_torch"
+    }
+}

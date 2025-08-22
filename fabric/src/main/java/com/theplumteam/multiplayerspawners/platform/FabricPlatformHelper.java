@@ -45,8 +45,6 @@ public class FabricPlatformHelper implements IPlatformHelper {
     @Override
     public <T extends Block> Supplier<T> registerBlock(String name, Supplier<T> block) {
         T registeredBlock = Registry.register(BuiltInRegistries.BLOCK, new ResourceLocation(Constants.MOD_ID, name), block.get());
-        Registry.register(BuiltInRegistries.ITEM, new ResourceLocation(Constants.MOD_ID, name),
-                new BlockItem(registeredBlock, new Item.Properties()));
         return () -> registeredBlock;
     }
 
@@ -59,6 +57,11 @@ public class FabricPlatformHelper implements IPlatformHelper {
     @Override
     public void initializeConfig() {
         FabricConfigRegistry.register();
+    }
+
+    @Override
+    public void register() {
+
     }
     
     @Override

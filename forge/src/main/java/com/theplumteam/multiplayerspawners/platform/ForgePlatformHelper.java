@@ -24,7 +24,7 @@ public class ForgePlatformHelper implements IPlatformHelper {
     private static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(Registries.BLOCK, Constants.MOD_ID);
     private static final DeferredRegister<Item> ITEMS = DeferredRegister.create(Registries.ITEM, Constants.MOD_ID);
 
-    static {
+    public void register() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         BLOCKS.register(modEventBus);
         ITEMS.register(modEventBus);
@@ -57,9 +57,7 @@ public class ForgePlatformHelper implements IPlatformHelper {
 
     @Override
     public <T extends Block> Supplier<T> registerBlock(String name, Supplier<T> block) {
-        RegistryObject<T> registryObject = BLOCKS.register(name, block);
-        ITEMS.register(name, () -> new BlockItem(registryObject.get(), new Item.Properties()));
-        return registryObject;
+        return BLOCKS.register(name, block);
     }
 
     @Override
