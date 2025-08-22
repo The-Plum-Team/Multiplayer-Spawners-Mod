@@ -53,4 +53,13 @@ public class Constants {
 			LOG.debug("[BLOCKS] " + message, args);
 		}
 	}
+
+	/**
+	 * Enhanced logging method for torch mechanic debugging.
+	 * Now logs at INFO level by default.
+	 */
+	public static void logTorchMechanics(String message, Object... args) {
+		// Always log at INFO level for easy debugging without system properties.
+		LOG.info("[TORCH] " + message, args);
+	}
 }

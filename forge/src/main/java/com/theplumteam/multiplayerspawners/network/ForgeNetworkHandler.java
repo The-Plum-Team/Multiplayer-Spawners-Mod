@@ -62,25 +62,8 @@ public class ForgeNetworkHandler extends NetworkHandler {
         Constants.LOG.debug("CLIENT: Received spawner state packet for pos {} with disabled players: {}",
                 packet.getPos(), packet.getDisabledPlayers());
 
-        // Get the previous state before updating
-        boolean wasDisabled = ClientSpawnerData.isSpawnerDisabledForCurrentPlayer(packet.getPos());
-
-        // Update the spawner state
+        // This single call now handles both the data update and the necessary visual update.
         ClientSpawnerData.updateSpawnerState(packet.getPos(), packet.getDisabledPlayers());
-
-        // Check if this is a new disable event (was not disabled, now is disabled)
-        boolean isNowDisabled = ClientSpawnerData.isSpawnerDisabledForCurrentPlayer(packet.getPos());
-
-        // IMMEDIATE VISUAL UPDATE: For any state change, force immediate visual update
-        if (wasDisabled != isNowDisabled) {
-            Constants.LOG.info("CLIENT: Spawner at {} state changed - forcing IMMEDIATE visual update", packet.getPos());
-            // Force immediate visual update with maximum priority
-            ClientSpawnerData.forceImmediateVisualUpdate(packet.getPos());
-        } else if (isNowDisabled) {
-            // This is a duplicate packet for an already disabled spawner - still ensure visual state is correct
-            Constants.LOG.debug("CLIENT: Ensuring visual state is correct for already disabled spawner at {}", packet.getPos());
-            ClientSpawnerData.forceImmediateVisualUpdate(packet.getPos());
-        }
     }
 
     @Override

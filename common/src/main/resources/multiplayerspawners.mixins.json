@@ -8,7 +8,8 @@
     "BlockMixin",
     "ServerPlayerGameModeMixin",
     "BaseSpawnerMixin",
-    "SpawnerBlockEntityMixin"
+    "SpawnerBlockEntityMixin",
+    "LevelChunkMixin"
   ],
   "injectors": {
     "defaultRequire": 1
