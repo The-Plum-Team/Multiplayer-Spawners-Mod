@@ -11,6 +11,8 @@ public class FabricConfigRegistry {
 
     public static void register() {
         ForgeConfigRegistry.INSTANCE.register(Constants.MOD_ID, ModConfig.Type.SERVER, com.theplumteam.multiplayerspawners.config.ModConfig.SERVER_SPEC);
+        ForgeConfigRegistry.INSTANCE.register(Constants.MOD_ID, ModConfig.Type.CLIENT, com.theplumteam.multiplayerspawners.config.ModConfig.CLIENT_SPEC);
+        com.theplumteam.multiplayerspawners.config.ModConfig.isClientConfigLoaded = true;
         Constants.LOG.info("Registered Fabric config for MultiplayerSpawners");
     }
 }

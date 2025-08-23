@@ -1,5 +1,15 @@
 package com.theplumteam.multiplayerspawners.client;
 
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.world.level.block.Blocks;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.ArrayList;
+import java.util.Comparator;
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.block.SpawnerStateProperties;
 import net.minecraft.client.Minecraft;
@@ -23,6 +33,9 @@ public class ClientSpawnerData {
 
     // Track spawners that need visual updates (to avoid unnecessary refreshes)
     private static final Set<BlockPos> spawnersNeedingUpdate = new HashSet<>();
+
+    // Temporarily lock spawners from client-side updates to prevent race conditions
+    private static final Set<BlockPos> lockedSpawners = new HashSet<>();
 
     // Cache the current player name to avoid repeated lookups
     private static String cachedPlayerName = null;
@@ -96,6 +109,12 @@ public class ClientSpawnerData {
      * @return true if the update was successful, false otherwise
      */
     private static boolean updateBlockStateInWorld(BlockPos pos, boolean isDisabledForPlayer, boolean forceUpdate) {
+        // If the spawner is locked, do not apply any updates
+        if (lockedSpawners.contains(pos) && !forceUpdate) {
+            Constants.LOG.debug("CLIENT: Spawner at {} is locked, skipping update", pos);
+            return false;
+        }
+
         var minecraft = Minecraft.getInstance();
         if (minecraft.level == null) {
             return false;
@@ -122,12 +141,18 @@ public class ClientSpawnerData {
             try {
                 var newState = currentState.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, newActivated);
 
-                // IMMEDIATE UPDATE: Use flag 11 for instant visual update
-                // Flag 11 = 1 (BLOCK_UPDATE) + 2 (UPDATE_CLIENTS) + 8 (UPDATE_IMMEDIATE)
-                minecraft.level.setBlock(pos, newState, 11);
+                // IMMEDIATE UPDATE: Use flag 19 for instant visual update
+                // Flag 19 = 1 (BLOCK_UPDATE) + 2 (NOTIFY_LISTENERS) + 16 (FORCE_STATE)
+                minecraft.level.setBlock(pos, newState, 19);
 
                 // Force multiple types of visual updates for immediate feedback
                 forceInstantVisualUpdate(pos, currentState, newState);
+
+                // Lock the spawner for a short period to prevent conflicting updates
+                lockSpawner(pos);
+
+                // Schedule a follow-up update to ensure the state sticks
+                scheduleFollowUpUpdate(pos, newState);
 
                 Constants.LOG.info("CLIENT: INSTANTLY updated spawner visual state at {} to MULTIPLAYER_ACTIVATED={}", pos, newActivated);
                 return true;
@@ -141,6 +166,60 @@ public class ClientSpawnerData {
             spawnersNeedingUpdate.remove(pos);
             return true;
         }
+    }
+
+    private static void scheduleFollowUpUpdate(BlockPos pos, BlockState expectedState) {
+        // Quick Follow-up (50ms)
+        new Thread(() -> {
+            try {
+                Thread.sleep(50); // 50ms delay
+                Minecraft.getInstance().execute(() -> {
+                    var minecraft = Minecraft.getInstance();
+                    if (minecraft.level != null) {
+                        var currentState = minecraft.level.getBlockState(pos);
+                        if (!currentState.equals(expectedState)) {
+                            Constants.LOG.debug("CLIENT: 50ms follow-up needed for {}. Current: {}, Expected: {}", pos, currentState, expectedState);
+                            minecraft.level.setBlock(pos, expectedState, 27); // Flag 27
+                        }
+                    }
+                });
+            } catch (InterruptedException e) {
+                Constants.LOG.warn("CLIENT: 50ms follow-up interrupted for {}", pos);
+            }
+        }).start();
+
+        // Verification (100ms)
+        new Thread(() -> {
+            try {
+                Thread.sleep(100); // 100ms delay
+                Minecraft.getInstance().execute(() -> {
+                    var minecraft = Minecraft.getInstance();
+                    if (minecraft.level != null) {
+                        var currentState = minecraft.level.getBlockState(pos);
+                        if (!currentState.equals(expectedState)) {
+                            Constants.LOG.debug("CLIENT: 100ms verification failed for {}. Correcting state.", pos);
+                            minecraft.level.setBlock(pos, expectedState, 147); // Flag 147 as a stronger backup
+                        }
+                    }
+                });
+            } catch (InterruptedException e) {
+                Constants.LOG.warn("CLIENT: 100ms verification interrupted for {}", pos);
+            }
+        }).start();
+    }
+
+    private static void lockSpawner(BlockPos pos) {
+        lockedSpawners.add(pos);
+        new Thread(() -> {
+            try {
+                Thread.sleep(500); // Lock for 500ms
+            } catch (InterruptedException e) {
+                // Ignore
+            } finally {
+                lockedSpawners.remove(pos);
+                Constants.LOG.debug("CLIENT: Unlocked spawner at {}", pos);
+            }
+        }).start();
     }
 
     /**
@@ -175,6 +254,13 @@ public class ClientSpawnerData {
 
             // 5. Trigger a level event for additional visual feedback
             minecraft.level.levelEvent(null, 2001, pos, 0); // Block break effect for visual feedback
+
+            // 6. Add particle effects for disabled state
+            if (!newState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
+                for (int i = 0; i < 10; i++) {
+                    minecraft.level.addParticle(ParticleTypes.SMOKE, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 0, 0, 0);
+                }
+            }
 
             Constants.LOG.info("CLIENT: Applied instant visual updates for spawner at {}", pos);
 
@@ -215,6 +301,18 @@ public class ClientSpawnerData {
      */
     public static boolean isSpawnerDisabledForCurrentPlayer(BlockPos pos) {
         return playerDisabledSpawners.getOrDefault(pos, false);
+    }
+
+    private static void fallbackBlockReplacement(BlockPos pos, boolean isDisabled) {
+        var minecraft = Minecraft.getInstance();
+        if (minecraft.level == null) return;
+
+        var originalState = minecraft.level.getBlockState(pos);
+        var airState = Blocks.AIR.defaultBlockState();
+        var spawnerState = Blocks.SPAWNER.defaultBlockState().setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, !isDisabled);
+
+        minecraft.level.setBlock(pos, airState, 20); // Flag 20 = 4 (DONT_RERENDER) + 16 (FORCE_STATE)
+        minecraft.level.setBlock(pos, spawnerState, 27); // Flag 27
     }
 
     /**
@@ -403,63 +501,66 @@ public class ClientSpawnerData {
             return;
         }
 
-        // Only check spawners within 32 blocks to avoid performance issues
         int radius = 32;
         var playerPos = minecraft.player.blockPosition();
-        
-        // Create a copy to avoid ConcurrentModificationException
-        var spawnersToCheck = new HashMap<>(playerDisabledSpawners);
+        var spawnersToCorrect = new ArrayList<BlockPos>();
         var spawnersToRemove = new HashSet<BlockPos>();
-        
-        // Check only spawners we have data for within range
-        for (Map.Entry<BlockPos, Boolean> entry : spawnersToCheck.entrySet()) {
+
+        // Prioritize spawners closer to the player
+        var sortedSpawners = playerDisabledSpawners.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey(Comparator.comparingDouble(pos -> pos.distSqr(playerPos))))
+                .toList();
+
+        for (Map.Entry<BlockPos, Boolean> entry : sortedSpawners) {
             BlockPos spawnerPos = entry.getKey();
-            Boolean isDisabled = entry.getValue();
-            
-            // Skip if out of range
             if (spawnerPos.distSqr(playerPos) > radius * radius) {
-                continue;
+                continue; // Skip spawners out of range
             }
-            
-            // Check if spawner block state is incorrect
+
             var currentState = minecraft.level.getBlockState(spawnerPos);
             if (!(currentState.getBlock() instanceof SpawnerBlock)) {
-                // Spawner was broken/removed, mark for cleanup
                 spawnersToRemove.add(spawnerPos);
-                Constants.logVisualUpdate("Marked broken spawner at {} for removal", spawnerPos);
                 continue;
             }
-            
+
             if (!currentState.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
-                Constants.LOG.warn("CLIENT: Spawner at {} missing MULTIPLAYER_ACTIVATED property during monitoring", spawnerPos);
                 continue;
             }
-            
+
+            boolean isDisabled = entry.getValue();
             boolean currentActivated = currentState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED);
-            boolean expectedActivated = !isDisabled; // Activated means NOT disabled
-            
-            // If state is incorrect, immediately fix it
+            boolean expectedActivated = !isDisabled;
+
             if (currentActivated != expectedActivated) {
-                Constants.logVisualUpdate("MONITOR: Detected incorrect spawner state at {} - current: {}, expected: {}", 
-                    spawnerPos, currentActivated, expectedActivated);
-                
-                // Force immediate correction
-                var newState = currentState.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, expectedActivated);
-                minecraft.level.setBlock(spawnerPos, newState, 11); // Immediate update flag
-                
-                // Apply instant visual updates
-                forceInstantVisualUpdate(spawnerPos, currentState, newState);
-                
-                Constants.logVisualUpdate("MONITOR: Corrected spawner state at {} to MULTIPLAYER_ACTIVATED={}", 
-                    spawnerPos, expectedActivated);
+                Constants.debug("MONITOR: Found incorrect spawner state at {}. Expected: {}, Actual: {}. Queueing for correction.", 
+                    spawnerPos, expectedActivated, currentActivated);
+                spawnersToCorrect.add(spawnerPos);
             }
         }
-        
-        // Clean up removed spawners outside the iteration loop
-        for (BlockPos posToRemove : spawnersToRemove) {
-            playerDisabledSpawners.remove(posToRemove);
-            spawnersNeedingUpdate.remove(posToRemove);
-            Constants.logVisualUpdate("Removed data for broken spawner at {}", posToRemove);
+
+        // Batch-correct all incorrect spawners
+        if (!spawnersToCorrect.isEmpty()) {
+            Constants.debug("MONITOR: Correcting {} incorrect spawner states.", spawnersToCorrect.size());
+            for (BlockPos pos : spawnersToCorrect) {
+                Boolean isDisabled = playerDisabledSpawners.get(pos);
+                if (isDisabled != null) {
+                    boolean success = updateBlockStateInWorld(pos, isDisabled, true);
+                    if (!success) {
+                        // Fallback: Full block replacement
+                        Constants.debug("MONITOR: Correction failed for {}. Attempting fallback.", pos);
+                        fallbackBlockReplacement(pos, isDisabled);
+                    }
+                }
+            }
+        }
+
+        // Clean up removed spawners
+        if (!spawnersToRemove.isEmpty()) {
+            for (BlockPos posToRemove : spawnersToRemove) {
+                playerDisabledSpawners.remove(posToRemove);
+                spawnersNeedingUpdate.remove(posToRemove);
+                Constants.debug("Removed data for broken spawner at {}", posToRemove);
+            }
         }
     }
 }

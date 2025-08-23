@@ -33,7 +33,7 @@ public class ClientEventHandler {
      */
     public static void onClientTick() {
         var minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.level == null) {
+        if (minecraft.player == null || minecraft.level == null || !com.theplumteam.multiplayerspawners.config.ModConfig.isClientConfigLoaded) {
             return;
         }
 

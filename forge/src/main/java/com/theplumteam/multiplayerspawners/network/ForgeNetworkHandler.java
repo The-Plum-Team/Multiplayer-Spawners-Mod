@@ -59,6 +59,11 @@ public class ForgeNetworkHandler extends NetworkHandler {
 
     @OnlyIn(Dist.CLIENT)
     private static void handleClientPacket(SpawnerStatePacket packet) {
+        if (!packet.isChecksumValid()) {
+            Constants.LOG.warn("CLIENT: Received corrupted spawner state packet for pos {}", packet.getPos());
+            return;
+        }
+
         Constants.LOG.debug("CLIENT: Received spawner state packet for pos {} with disabled players: {}",
                 packet.getPos(), packet.getDisabledPlayers());
 
@@ -75,6 +80,16 @@ public class ForgeNetworkHandler extends NetworkHandler {
 
             // Send with high priority for immediate delivery
             CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
+
+            // Send a redundant packet after a short delay
+            new Thread(() -> {
+                try {
+                    Thread.sleep(100);
+                    CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
+                } catch (InterruptedException e) {
+                    // Ignore
+                }
+            }).start();
         } else {
             Constants.LOG.warn("SERVER: Cannot send packet - CHANNEL is null");
         }

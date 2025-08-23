@@ -12,10 +12,18 @@ public class ModConfig {
     public static final ServerConfig SERVER;
     public static final ForgeConfigSpec SERVER_SPEC;
 
+    public static final ClientConfig CLIENT;
+    public static final ForgeConfigSpec CLIENT_SPEC;
+    public static boolean isClientConfigLoaded = false;
+
     static {
-        final Pair<ServerConfig, ForgeConfigSpec> specPair = new ForgeConfigSpec.Builder().configure(ServerConfig::new);
-        SERVER_SPEC = specPair.getRight();
-        SERVER = specPair.getLeft();
+        final Pair<ServerConfig, ForgeConfigSpec> serverSpecPair = new ForgeConfigSpec.Builder().configure(ServerConfig::new);
+        SERVER_SPEC = serverSpecPair.getRight();
+        SERVER = serverSpecPair.getLeft();
+
+        final Pair<ClientConfig, ForgeConfigSpec> clientSpecPair = new ForgeConfigSpec.Builder().configure(ClientConfig::new);
+        CLIENT_SPEC = clientSpecPair.getRight();
+        CLIENT = clientSpecPair.getLeft();
     }
 
     public static class ServerConfig {
@@ -47,6 +55,21 @@ public class ModConfig {
                             "Set to 0 to disable torch extinguishing entirely",
                             "Minimum: 0 seconds, Maximum: 300 seconds (5 minutes)")
                     .defineInRange("torchExtinguishDelaySeconds", 10, 0, 300);
+
+            builder.pop();
+        }
+    }
+
+    public static class ClientConfig {
+        public final ForgeConfigSpec.BooleanValue enableDebugLogging;
+
+        public ClientConfig(ForgeConfigSpec.Builder builder) {
+            builder.comment("Client-side Configuration")
+                    .push("client");
+
+            enableDebugLogging = builder
+                    .comment("Enable detailed debug logging for troubleshooting visual issues.")
+                    .define("enableDebugLogging", false);
 
             builder.pop();
         }

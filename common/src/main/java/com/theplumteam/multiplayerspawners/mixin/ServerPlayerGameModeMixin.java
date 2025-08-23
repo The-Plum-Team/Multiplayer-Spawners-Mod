@@ -1,5 +1,6 @@
 package com.theplumteam.multiplayerspawners.mixin;
 
+import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
@@ -57,6 +58,9 @@ public abstract class ServerPlayerGameModeMixin {
 
             // Send to all players tracking this chunk (but the disabling player already got immediate feedback)
             NetworkHandler.getInstance().sendSpawnerStateToTracking(level, pos, disabledPlayers);
+
+            // Force a block entity update to sync NBT data
+            level.sendBlockUpdated(pos, level.getBlockState(pos), level.getBlockState(pos), 3);
         }
 
         // Group disabling functionality
@@ -128,8 +132,11 @@ public abstract class ServerPlayerGameModeMixin {
             Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
             
             // Send immediate visual state refresh packet with high priority
-            Constants.logNetworkPacket("Sending forced visual refresh for cancelled break at {} to player {}", pos, player.getName().getString());
+            Constants.debug("Sending forced visual refresh for cancelled break at {} to player {}", pos, player.getName().getString());
             NetworkHandler.getInstance().sendSpawnerStateToPlayer(player, pos, disabledPlayers, true);
+
+            // Explicitly reset the client's breaking progress
+            player.connection.send(new ClientboundBlockUpdatePacket(pos, level.getBlockState(pos)));
         }
     }
 

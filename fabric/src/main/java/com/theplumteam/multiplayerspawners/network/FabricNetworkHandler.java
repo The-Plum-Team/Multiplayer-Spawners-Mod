@@ -44,6 +44,11 @@ public class FabricNetworkHandler extends NetworkHandler {
 
     @Environment(EnvType.CLIENT)
     private static void handleClientPacket(SpawnerStatePacket packet) {
+        if (!packet.isChecksumValid()) {
+            Constants.LOG.warn("CLIENT: Received corrupted spawner state packet for pos {}", packet.getPos());
+            return;
+        }
+
         Constants.LOG.debug("CLIENT: Received spawner state packet for pos {} with disabled players: {}",
                 packet.getPos(), packet.getDisabledPlayers());
 
@@ -62,6 +67,16 @@ public class FabricNetworkHandler extends NetworkHandler {
 
         // Send with high priority for immediate delivery
         ServerPlayNetworking.send(player, SPAWNER_STATE_PACKET_ID, buf);
+
+        // Send a redundant packet after a short delay
+        new Thread(() -> {
+            try {
+                Thread.sleep(100);
+                ServerPlayNetworking.send(player, SPAWNER_STATE_PACKET_ID, buf);
+            } catch (InterruptedException e) {
+                // Ignore
+            }
+        }).start();
     }
 
     @Override

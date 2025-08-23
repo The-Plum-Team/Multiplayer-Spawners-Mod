@@ -12,8 +12,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 public class MultiplayerSpawnersFabric implements ModInitializer {
-code
-Code
+
 @Override
 public void onInitialize() {
     
