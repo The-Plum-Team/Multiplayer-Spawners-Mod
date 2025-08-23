@@ -39,28 +39,6 @@ public class SpawnerLocationCache {
         }
     }
 
-    public static boolean isFarFromSpawner(ResourceKey<Level> dimension, BlockPos torchPos, double distance) {
-        Set<BlockPos> positions = spawnerPositions.get(dimension);
-        if (positions == null || positions.isEmpty()) {
-            Constants.logTorchMechanics("No spawners cached for dimension {}. Torch at {} is considered far.", dimension.location(), torchPos);
-            return true; // No spawners in dimension, so definitely far.
-        }
-
-        double distSqr = distance * distance;
-        Constants.logTorchMechanics("Checking torch at {} against {} spawners in dimension {}. Max distance squared: {}", torchPos, positions.size(), dimension.location(), distSqr);
-
-        for (BlockPos spawnerPos : positions) {
-            double currentDistSqr = torchPos.distSqr(spawnerPos);
-            if (currentDistSqr <= distSqr) {
-                Constants.logTorchMechanics("Torch at {} is NEAR spawner at {}. Distance squared: {} <= {}", torchPos, spawnerPos, currentDistSqr, distSqr);
-                return false; // Found a spawner within range
-            }
-        }
-
-        Constants.logTorchMechanics("Torch at {} is FAR from all spawners.", torchPos);
-        return true; // No spawners found within range
-    }
-
     public static void clear() {
         spawnerPositions.clear();
         Constants.LOG.info("Cleared spawner location cache.");
@@ -77,8 +55,20 @@ public class SpawnerLocationCache {
 
             // Use reflection to access the protected 'getChunks' method
             if (getChunksMethod == null) {
-                getChunksMethod = ChunkMap.class.getDeclaredMethod("getChunks");
-                getChunksMethod.setAccessible(true);
+                // In production environments, the method name "getChunks" is obfuscated.
+                // To maintain compatibility, we find the method by its unique signature:
+                // it's the only method in ChunkMap that takes no arguments and returns an Iterable.
+                for (final Method method : ChunkMap.class.getDeclaredMethods()) {
+                    if (method.getParameterCount() == 0 && method.getReturnType() == Iterable.class) {
+                        Constants.LOG.debug("Found ChunkMap#getChunks method by signature: {}", method.getName());
+                        getChunksMethod = method;
+                        getChunksMethod.setAccessible(true);
+                        break;
+                    }
+                }
+                if (getChunksMethod == null) {
+                    throw new NoSuchMethodException("Could not find ChunkMap.getChunks() method via reflection. This is likely due to a Minecraft update breaking compatibility.");
+                }
             }
             Iterable<ChunkHolder> chunkHolders = (Iterable<ChunkHolder>) getChunksMethod.invoke(chunkMap);
 
@@ -100,36 +90,4 @@ public class SpawnerLocationCache {
 
         Constants.LOG.info("Populated spawner cache for dimension {}: found {} spawners", dimension.location(), positions.size());
     }
-
-    /**
-     * Gets all spawner positions in a specific dimension
-     */
-    public static Set<BlockPos> getSpawnersInDimension(ResourceKey<Level> dimension) {
-        return spawnerPositions.get(dimension);
-    }
-
-    /**
-     * Finds the nearest spawner to the given position in the specified dimension
-     */
-    public static BlockPos findNearestSpawner(ResourceKey<Level> dimension, BlockPos targetPos) {
-        Set<BlockPos> positions = spawnerPositions.get(dimension);
-        if (positions == null || positions.isEmpty()) {
-            return null;
-        }
-
-        BlockPos nearest = null;
-        double nearestDistSq = Double.MAX_VALUE;
-
-        for (BlockPos spawnerPos : positions) {
-            double distSq = targetPos.distSqr(spawnerPos);
-            if (distSq < nearestDistSq) {
-                nearestDistSq = distSq;
-                nearest = spawnerPos;
-            }
-        }
-
-        return nearest;
-    }
-
-
 }
