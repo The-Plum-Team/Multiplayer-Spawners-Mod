@@ -1,3 +1,5 @@
+package com.theplumteam.multiplayerspawners;
+
 import com.theplumteam.multiplayerspawners.event.CommandHandler;
 import com.theplumteam.multiplayerspawners.event.PlayerEventHandler;
 import com.theplumteam.multiplayerspawners.event.ServerLifecycleHandler;
@@ -22,34 +24,7 @@ public void onInitialize() {
     // Use Fabric to bootstrap the Common mod.
     Constants.LOG.info("Hello Fabric world!");
     CommonClass.init();
-    
-    // Register commands
-    CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-        CommandHandler.register(dispatcher);
-    });
-    
-    // Register event handlers
-    ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-        PlayerEventHandler.onPlayerJoin(handler.getPlayer());
-    });
-    
-    ServerPlayerEvents.ALLOW_DEATH.register((player, damageSource, damageAmount) -> {
-        return true; // Allow death, we just want to hook the event
-    });
-    
-    ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
-        PlayerEventHandler.onPlayerRespawn(newPlayer);
-    });
-    // For dimension changes, we use copy from event
-    ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) -> {
-        if (!alive) { // This indicates a dimension change rather than death
-            PlayerEventHandler.onPlayerChangeDimension(newPlayer);
-        }
-    });
 
-    // Register server lifecycle events for new mechanic
-    ServerTickEvents.END_SERVER_TICK.register(TorchTracker::onServerTick);
-    ServerWorldEvents.LOAD.register((server, level) -> ServerLifecycleHandler.onLevelLoad(level));
-    ServerLifecycleEvents.SERVER_STOPPING.register(ServerLifecycleHandler::onServerStopping);
+    FabricServerEvents.register();
 }
 }

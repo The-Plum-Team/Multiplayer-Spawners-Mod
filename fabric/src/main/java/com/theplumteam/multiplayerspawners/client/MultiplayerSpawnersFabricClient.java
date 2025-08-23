@@ -50,6 +50,12 @@ public class MultiplayerSpawnersFabricClient implements ClientModInitializer {
             ClientEventHandler.onChunkUnload(chunk);
         });
 
+        // Register player respawn event
+        ClientPlayConnectionEvents.PLAYER_RESPAWN.register((oldPlayer, newPlayer, client) -> {
+            Constants.LOG.info("CLIENT: Fabric player respawn event");
+            ClientEventHandler.onPlayerRespawn();
+        });
+
         Constants.LOG.info("MultiplayerSpawners Fabric enhanced client initialized");
     }
 }
