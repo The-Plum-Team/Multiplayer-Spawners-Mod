@@ -53,8 +53,8 @@ public class ModConfig {
                     .comment("How many seconds a torch has before being extinguished by a nearby spawner",
                             "Torches placed within 7 blocks of a spawner will be extinguished after this delay",
                             "Set to 0 to disable torch extinguishing entirely",
-                            "Minimum: 0 seconds, Maximum: 300 seconds (5 minutes)")
-                    .defineInRange("torchExtinguishDelaySeconds", 10, 0, 300);
+                            "Minimum: 0 seconds, Maximum: 3600 seconds (1 hour)")
+                    .defineInRange("torchExtinguishDelaySeconds", 600, 0, 3600);
 
             builder.pop();
         }
