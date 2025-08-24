@@ -17,6 +17,9 @@
     "entrypoints": {
         "main": [
             "com.theplumteam.multiplayerspawners.MultiplayerSpawnersFabric"
+        ],
+        "client": [
+            "com.theplumteam.multiplayerspawners.client.MultiplayerSpawnersFabricClient"
         ]
     },
     "mixins": [
