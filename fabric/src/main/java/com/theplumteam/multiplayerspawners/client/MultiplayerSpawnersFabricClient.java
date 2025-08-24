@@ -30,7 +30,9 @@ public class MultiplayerSpawnersFabricClient implements ClientModInitializer {
         // Register join event to clear old data
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             Constants.LOG.info("CLIENT: Fabric join event");
-            ClientEventHandler.onClientConnect();
+            // DO NOT call onClientConnect() here. It causes a race condition.
+            // onClientDisconnect() already handles clearing the data when leaving a world.
+            // ClientEventHandler.onClientConnect(); // <- REMOVE THIS LINE
         });
 
         // Register client tick events for dimension detection and periodic updates
