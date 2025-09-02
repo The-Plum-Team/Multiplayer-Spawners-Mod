@@ -12,10 +12,14 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.SpawnerBlock;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -35,6 +39,33 @@ public abstract class ServerPlayerGameModeMixin {
 
     @Shadow
     protected ServerPlayer player;
+
+    @Unique
+    private static final String DUNGEON_PICKAXE_ID = "composite_material:dungeon_pickaxe";
+
+    @Unique
+    private boolean multiplayerspawners$isDungeonPickaxe(ItemStack itemStack) {
+        if (itemStack.isEmpty()) {
+            return false;
+        }
+
+        ResourceLocation itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(itemStack.getItem());
+        return DUNGEON_PICKAXE_ID.equals(itemId.toString());
+    }
+
+    @Unique
+    private void multiplayerspawners$dropEmptySpawner(Level level, BlockPos pos, ServerPlayer player) {
+        // Create a spawner item stack
+        ItemStack spawnerItem = new ItemStack(Blocks.SPAWNER);
+
+        // Create the item entity and drop it at the spawner location
+        ItemEntity itemEntity = new ItemEntity(level, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, spawnerItem);
+        itemEntity.setDefaultPickUpDelay();
+        level.addFreshEntity(itemEntity);
+
+        Constants.LOG.info("Dropped empty spawner for player {} at {} using dungeon pickaxe",
+                player.getName().getString(), pos);
+    }
 
     @Unique
     private void multiplayerspawners$handleSpawnerInteraction(Level level, BlockPos pos, ServerPlayer player) {
@@ -130,7 +161,7 @@ public abstract class ServerPlayerGameModeMixin {
         if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
             SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
             Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
-            
+
             // Send immediate visual state refresh packet with high priority
             Constants.debug("Sending forced visual refresh for cancelled break at {} to player {}", pos, player.getName().getString());
             NetworkHandler.getInstance().sendSpawnerStateToPlayer(player, pos, disabledPlayers, true);
@@ -146,7 +177,7 @@ public abstract class ServerPlayerGameModeMixin {
         if (blockState.getBlock() instanceof SpawnerBlock) {
             // Drop experience like a normal spawner break
             blockState.getBlock().playerWillDestroy(level, pos, blockState, player);
-            
+
             // Drop any additional items that other mods might add to spawner drops
             // This calls the block's dropResources method which handles mod compatibility
             blockState.getBlock().dropResources(blockState, level, pos, level.getBlockEntity(pos), player, player.getMainHandItem());
@@ -157,21 +188,21 @@ public abstract class ServerPlayerGameModeMixin {
     private void multiplayerspawners$sendClickableBreakMessage(ServerPlayer player, BlockPos pos) {
         // Create the explanatory text
         MutableComponent explanationMessage = Component.literal("The spawner is disabled for you and nearby players. Other players will have it active so they can enjoy the dungeon. ").withStyle(ChatFormatting.LIGHT_PURPLE);
-        
+
         // Create the clickable part
         MutableComponent clickablePart = Component.literal("[Click here to break it]")
                 .withStyle(style -> style
                         .withColor(ChatFormatting.RED)
                         .withBold(true)
-                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, 
+                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
                                 "/multiplayerspawners allow_break " + pos.getX() + " " + pos.getY() + " " + pos.getZ()))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, 
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
                                 Component.literal("Click to break this spawner").withStyle(ChatFormatting.YELLOW)))
                 );
-        
+
         // Combine the messages
         MutableComponent fullMessage = explanationMessage.append(clickablePart);
-        
+
         player.displayClientMessage(fullMessage, false);
     }
 
@@ -183,10 +214,10 @@ public abstract class ServerPlayerGameModeMixin {
         if (blockState.getBlock() instanceof SpawnerBlock) {
             if (SpawnerStateManager.isSpawnerDisabledForPlayer(world, pos, this.player.getName().getString())) {
                 multiplayerspawners$sendClickableBreakMessage(this.player, pos);
-                
+
                 // Force immediate visual state refresh to prevent texture reset
                 multiplayerspawners$forceVisualStateRefresh(world, pos, this.player);
-                
+
                 cir.setReturnValue(false);
                 cir.cancel();
                 return;
@@ -216,10 +247,21 @@ public abstract class ServerPlayerGameModeMixin {
             }
 
             Constants.LOG.info("Player {} is disabling a spawner for the first time at {}. Intercepting and dropping experience.", player.getName().getString(), pos);
-            
+
+            // Check if player is holding the dungeon pickaxe and the spawner is active
+            ItemStack heldItem = this.player.getMainHandItem();
+            boolean hasDungeonPickaxe = multiplayerspawners$isDungeonPickaxe(heldItem);
+
+            if (hasDungeonPickaxe) {
+                // Drop an empty spawner block
+                multiplayerspawners$dropEmptySpawner(world, pos, this.player);
+                Constants.LOG.info("Player {} used dungeon pickaxe to disable spawner at {} - dropped empty spawner",
+                        player.getName().getString(), pos);
+            }
+
             // Drop experience and items as if the spawner was broken normally
             multiplayerspawners$dropSpawnerRewards(world, pos, this.player);
-            
+
             // Then handle the spawner interaction (disable it)
             multiplayerspawners$handleSpawnerInteraction(world, pos, this.player);
 
