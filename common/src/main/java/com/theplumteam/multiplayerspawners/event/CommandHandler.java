@@ -24,6 +24,50 @@ public class CommandHandler {
 
     public static void register(com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("multiplayerspawners")
+                // NEW COMMAND
+                .then(Commands.literal("set_break_attempts")
+                        .requires(source -> source.hasPermission(2)) // OP level 2
+                        .then(Commands.argument("value", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 10))
+                                .executes(context -> {
+                                    int newValue = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(context, "value");
+                                    int oldValue = ModConfig.SERVER.requiredBreakAttempts.get();
+
+                                    ModConfig.SERVER.requiredBreakAttempts.set(newValue);
+
+                                    String type = (newValue == 1) ? "ONE-HIT (Break message on first hit)" : "TWO-STEP (Break message on second hit)";
+                                    ChatFormatting color = (newValue == 1) ? ChatFormatting.GOLD : ChatFormatting.GREEN;
+
+                                    context.getSource().sendSuccess(() -> Component.literal("Spawner break attempts set to: " + newValue + " [" + type + "]")
+                                            .withStyle(color), true);
+
+                                    Constants.LOG.info("Player {} changed requiredBreakAttempts from {} to {}",
+                                        context.getSource().getTextName(), oldValue, newValue);
+
+                                    return 1;
+                                })
+                        )
+                )
+                .then(Commands.literal("toggle_break_message")
+                        .requires(source -> source.hasPermission(2)) // OP level 2
+                        .executes(context -> {
+                            boolean current = ModConfig.SERVER.allowSpawnerBreakMessage.get();
+                            boolean newValue = !current;
+                            ModConfig.SERVER.allowSpawnerBreakMessage.set(newValue);
+
+                            String status = newValue ? "ENABLED" : "DISABLED";
+                            ChatFormatting color = newValue ? ChatFormatting.GREEN : ChatFormatting.RED;
+
+                            context.getSource().sendSuccess(() -> Component.literal("Spawner break message is now " + status)
+                                    .withStyle(color), true);
+
+                            if (!newValue) {
+                                context.getSource().sendSuccess(() -> Component.literal("Survival players will no longer be able to break disabled spawners.")
+                                        .withStyle(ChatFormatting.GRAY), false);
+                            }
+
+                            return 1;
+                        })
+                )
                 .then(Commands.literal("allow_break")
                         .then(Commands.argument("x", com.mojang.brigadier.arguments.IntegerArgumentType.integer())
                                 .then(Commands.argument("y", com.mojang.brigadier.arguments.IntegerArgumentType.integer())
@@ -32,6 +76,14 @@ public class CommandHandler {
                                                     CommandSourceStack source = context.getSource();
                                                     if (!(source.getEntity() instanceof ServerPlayer player)) {
                                                         source.sendFailure(Component.literal("Only players can use this command!"));
+                                                        return 0;
+                                                    }
+
+                                                    // Security Check: Prevent manual command entry if feature is disabled
+                                                    boolean isBreakAllowed = ModConfig.SERVER.allowSpawnerBreakMessage.get();
+                                                    if (!isBreakAllowed && !player.isCreative()) {
+                                                        player.displayClientMessage(Component.literal("Breaking disabled spawners is currently prohibited on this server.")
+                                                                .withStyle(ChatFormatting.RED), false);
                                                         return 0;
                                                     }
 

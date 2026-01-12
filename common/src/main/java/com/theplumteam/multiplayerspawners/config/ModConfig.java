@@ -30,6 +30,10 @@ public class ModConfig {
         public final ForgeConfigSpec.BooleanValue enableGroupDisabling;
         public final ForgeConfigSpec.IntValue groupDisablingRadius;
         public final ForgeConfigSpec.IntValue torchExtinguishDelaySeconds;
+        public final ForgeConfigSpec.BooleanValue allowSpawnerBreakMessage;
+
+        // NEW CONFIG OPTION
+        public final ForgeConfigSpec.IntValue requiredBreakAttempts;
 
         public ServerConfig(ForgeConfigSpec.Builder builder) {
             builder.comment("MultiplayerSpawners Configuration")
@@ -43,6 +47,25 @@ public class ModConfig {
                     .comment("Radius in blocks to search for other players when group disabling is enabled",
                             "Players within this radius will have their spawners disabled when someone disables a spawner")
                     .defineInRange("groupDisablingRadius", 20, 1, 100);
+
+            builder.pop();
+
+            // NEW SECTION
+            builder.comment("Breaking Mechanics")
+                    .push("breaking");
+
+            requiredBreakAttempts = builder
+                    .comment("How many interactions are required to get the break message.",
+                             "1 = One-hit mode. First hit disables AND shows the break message immediately.",
+                             "2 = Standard Mod behavior. First hit disables, second hit shows the break message.",
+                             "Values higher than 2 are currently treated as 2.")
+                    .defineInRange("requiredBreakAttempts", 2, 1, 10);
+
+            allowSpawnerBreakMessage = builder
+                    .comment("If true, players receive a clickable message allowing them to break disabled spawners.",
+                            "If false, only Creative mode players can break disabled spawners.",
+                            "Use /multiplayerspawners toggle_break_message to toggle this setting in-game.")
+                    .define("allowSpawnerBreakMessage", true);
 
             builder.pop();
 

@@ -185,25 +185,29 @@ public abstract class ServerPlayerGameModeMixin {
     }
 
     @Unique
-    private void multiplayerspawners$sendClickableBreakMessage(ServerPlayer player, BlockPos pos) {
+    private void multiplayerspawners$sendClickableBreakMessage(ServerPlayer player, BlockPos pos, boolean includeBreakLink) {
         // Create the explanatory text
-        MutableComponent explanationMessage = Component.literal("The spawner is disabled for you and nearby players. Other players will have it active so they can enjoy the dungeon. ").withStyle(ChatFormatting.LIGHT_PURPLE);
+        MutableComponent explanationMessage = Component.literal("The spawner is disabled for you and nearby players. Other players will have it active so they can enjoy the dungeon.").withStyle(ChatFormatting.LIGHT_PURPLE);
 
-        // Create the clickable part
-        MutableComponent clickablePart = Component.literal("[Click here to break it]")
-                .withStyle(style -> style
-                        .withColor(ChatFormatting.RED)
-                        .withBold(true)
-                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
-                                "/multiplayerspawners allow_break " + pos.getX() + " " + pos.getY() + " " + pos.getZ()))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                Component.literal("Click to break this spawner").withStyle(ChatFormatting.YELLOW)))
-                );
+        if (includeBreakLink) {
+            // Add space before clickable part
+            explanationMessage.append(Component.literal(" "));
 
-        // Combine the messages
-        MutableComponent fullMessage = explanationMessage.append(clickablePart);
+            // Create the clickable part
+            MutableComponent clickablePart = Component.literal("[Click here to break it]")
+                    .withStyle(style -> style
+                            .withColor(ChatFormatting.RED)
+                            .withBold(true)
+                            .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
+                                    "/multiplayerspawners allow_break " + pos.getX() + " " + pos.getY() + " " + pos.getZ()))
+                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                                    Component.literal("Click to break this spawner").withStyle(ChatFormatting.YELLOW)))
+                    );
 
-        player.displayClientMessage(fullMessage, false);
+            explanationMessage.append(clickablePart);
+        }
+
+        player.displayClientMessage(explanationMessage, false);
     }
 
     @Inject(method = "destroyBlock", at = @At("HEAD"), cancellable = true)
@@ -212,8 +216,15 @@ public abstract class ServerPlayerGameModeMixin {
         BlockState blockState = world.getBlockState(pos);
 
         if (blockState.getBlock() instanceof SpawnerBlock) {
+            // Check configuration for break message
+            boolean allowBreaking = ModConfig.SERVER.allowSpawnerBreakMessage.get();
+            boolean isCreative = this.player.isCreative();
+            int requiredAttempts = ModConfig.SERVER.requiredBreakAttempts.get();
+
             if (SpawnerStateManager.isSpawnerDisabledForPlayer(world, pos, this.player.getName().getString())) {
-                multiplayerspawners$sendClickableBreakMessage(this.player, pos);
+                // Always show explanatory message, but only include break link if allowed
+                boolean canBreak = allowBreaking || isCreative;
+                multiplayerspawners$sendClickableBreakMessage(this.player, pos, canBreak);
 
                 // Force immediate visual state refresh to prevent texture reset
                 multiplayerspawners$forceVisualStateRefresh(world, pos, this.player);
@@ -224,7 +235,9 @@ public abstract class ServerPlayerGameModeMixin {
             }
 
             if (SpawnerStateManager.isSpawnerDisabledByAnyone(world, pos)) {
-                multiplayerspawners$sendClickableBreakMessage(this.player, pos);
+                // Always show explanatory message, but only include break link if allowed
+                boolean canBreak = allowBreaking || isCreative;
+                multiplayerspawners$sendClickableBreakMessage(this.player, pos, canBreak);
                 SpawnerStateManager.disableSpawnerForPlayer(world, pos, this.player.getName().getString());
 
                 // Send network update for this new player disabling (immediate feedback for this player)
@@ -246,6 +259,35 @@ public abstract class ServerPlayerGameModeMixin {
                 return;
             }
 
+            // --- ONE HIT BREAK MODE (requiredAttempts == 1) ---
+            // First hit: disable spawner, drop rewards, AND show break message immediately
+            if (requiredAttempts == 1) {
+                Constants.LOG.info("Player {} is disabling spawner at {} with ONE-HIT mode. Showing break message immediately.", player.getName().getString(), pos);
+
+                // Check if player is holding the dungeon pickaxe
+                if (multiplayerspawners$isDungeonPickaxe(this.player.getMainHandItem())) {
+                    multiplayerspawners$dropEmptySpawner(world, pos, this.player);
+                    Constants.LOG.info("Player {} used dungeon pickaxe to disable spawner at {} - dropped empty spawner",
+                            player.getName().getString(), pos);
+                }
+
+                // Drop experience and items as if the spawner was broken normally
+                multiplayerspawners$dropSpawnerRewards(world, pos, this.player);
+
+                // Disable the spawner for this player
+                multiplayerspawners$handleSpawnerInteraction(world, pos, this.player);
+
+                // Show the break message immediately (one-hit mode)
+                boolean canBreak = allowBreaking || isCreative;
+                multiplayerspawners$sendClickableBreakMessage(this.player, pos, canBreak);
+
+                cir.setReturnValue(false);
+                cir.cancel();
+                return;
+            }
+
+            // --- STANDARD TWO-HIT MODE (requiredAttempts >= 2) ---
+            // First hit: just disable the spawner and drop rewards (no break message yet)
             Constants.LOG.info("Player {} is disabling a spawner for the first time at {}. Intercepting and dropping experience.", player.getName().getString(), pos);
 
             // Check if player is holding the dungeon pickaxe and the spawner is active
