@@ -2,6 +2,7 @@ package com.theplumteam.multiplayerspawners.network;
 
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.client.ClientSpawnerData;
+import com.theplumteam.multiplayerspawners.config.ModConfig;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -18,12 +19,15 @@ import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
 public class ForgeNetworkHandler extends NetworkHandler {
 
-    private static final String PROTOCOL_VERSION = "1";
+    // Bump protocol version because packet structure changed
+    private static final String PROTOCOL_VERSION = "4";
     private static SimpleChannel CHANNEL;
 
     @Override
@@ -35,7 +39,6 @@ public class ForgeNetworkHandler extends NetworkHandler {
                 PROTOCOL_VERSION::equals
         );
 
-        // Register the spawner state packet
         CHANNEL.registerMessage(
                 0,
                 SpawnerStatePacket.class,
@@ -49,7 +52,6 @@ public class ForgeNetworkHandler extends NetworkHandler {
 
     private static void handleSpawnerStatePacket(SpawnerStatePacket packet, Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
-            // This runs on the client with immediate execution
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
                 handleClientPacket(packet);
             });
@@ -59,69 +61,58 @@ public class ForgeNetworkHandler extends NetworkHandler {
 
     @OnlyIn(Dist.CLIENT)
     private static void handleClientPacket(SpawnerStatePacket packet) {
-        if (!packet.isChecksumValid()) {
-            Constants.LOG.warn("CLIENT: Received corrupted spawner state packet for pos {}", packet.getPos());
-            return;
+        // Iterate through the batched updates
+        for (SpawnerStatePacket.SpawnerUpdate update : packet.getUpdates()) {
+            Constants.LOG.debug("CLIENT: Received update for pos {}", update.pos);
+            ClientSpawnerData.updateSpawnerState(update.pos, update.disabledPlayers, update.treatedAsVanilla);
         }
-
-        Constants.LOG.debug("CLIENT: Received spawner state packet for pos {} with disabled players: {}",
-                packet.getPos(), packet.getDisabledPlayers());
-
-        // This single call now handles both the data update and the necessary visual update.
-        ClientSpawnerData.updateSpawnerState(packet.getPos(), packet.getDisabledPlayers());
     }
 
     @Override
-    public void sendSpawnerStateToPlayer(ServerPlayer player, BlockPos pos, Set<String> disabledPlayers, boolean isFullSync) {
+    public void sendSpawnerStateToPlayer(ServerPlayer player, BlockPos pos, Set<String> disabledPlayers, boolean isFullSync, boolean treatedAsVanilla) {
         if (CHANNEL != null) {
-            Constants.LOG.info("SERVER: Sending PRIORITY spawner state packet to player {} for pos {} with disabled players: {}",
-                    player.getName().getString(), pos, disabledPlayers);
-            SpawnerStatePacket packet = new SpawnerStatePacket(pos, disabledPlayers, isFullSync);
-
-            // Send with high priority for immediate delivery
+            SpawnerStatePacket packet = new SpawnerStatePacket(pos, disabledPlayers, isFullSync, treatedAsVanilla);
             CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
-
-            // Send a redundant packet after a short delay
-            new Thread(() -> {
-                try {
-                    Thread.sleep(100);
-                    CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
-            }).start();
-        } else {
-            Constants.LOG.warn("SERVER: Cannot send packet - CHANNEL is null");
+            // CRASH FIX: Removed the "new Thread()" redundant packet logic.
+            // The batching system below ensures reliability without crashing the OS.
         }
     }
 
     @Override
-    public void sendSpawnerStateToTracking(Level level, BlockPos pos, Set<String> disabledPlayers) {
+    public void sendSpawnerStateToTracking(Level level, BlockPos pos, Set<String> disabledPlayers, boolean treatedAsVanilla) {
         if (CHANNEL != null && level instanceof ServerLevel serverLevel) {
             LevelChunk chunk = serverLevel.getChunkAt(pos);
-            SpawnerStatePacket packet = new SpawnerStatePacket(pos, disabledPlayers, false);
-
-            Constants.LOG.debug("SERVER: Sending spawner state to all tracking players for pos {} in chunk {}, {}",
-                    pos, chunk.getPos().x, chunk.getPos().z);
+            SpawnerStatePacket packet = new SpawnerStatePacket(pos, disabledPlayers, false, treatedAsVanilla);
             CHANNEL.send(PacketDistributor.TRACKING_CHUNK.with(() -> chunk), packet);
+        }
+    }
+
+    @Override
+    protected void sendBatchedStatesToPlayer(ServerPlayer player, List<SpawnerStatePacket.SpawnerUpdate> updates, boolean isFullSync) {
+        if (updates.isEmpty()) return;
+
+        // Split into chunks of 100 to avoid packet size limits
+        int batchSize = 100;
+        for (int i = 0; i < updates.size(); i += batchSize) {
+            int end = Math.min(updates.size(), i + batchSize);
+            List<SpawnerStatePacket.SpawnerUpdate> batch = updates.subList(i, end);
+            SpawnerStatePacket packet = new SpawnerStatePacket(batch, isFullSync);
+            CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
         }
     }
 
     @Override
     public void sendAllSpawnerStatesToPlayer(ServerPlayer player) {
         if (player.level() instanceof ServerLevel serverLevel) {
-            Constants.LOG.info("SERVER: Sending all spawner states to player {} in dimension {}",
-                    player.getName().getString(), serverLevel.dimension().location());
+            Constants.LOG.info("SERVER: Collecting spawner states for player batch sync...");
 
-            // Get the view distance to determine which chunks to check
             int viewDistance = serverLevel.getServer().getPlayerList().getViewDistance();
             BlockPos playerPos = player.blockPosition();
             int chunkX = playerPos.getX() >> 4;
             int chunkZ = playerPos.getZ() >> 4;
 
-            int spawnersFound = 0;
+            List<SpawnerStatePacket.SpawnerUpdate> updates = new ArrayList<>();
 
-            // Iterate through chunks within view distance
             for (int dx = -viewDistance; dx <= viewDistance; dx++) {
                 for (int dz = -viewDistance; dz <= viewDistance; dz++) {
                     LevelChunk chunk = serverLevel.getChunk(chunkX + dx, chunkZ + dz);
@@ -130,8 +121,12 @@ public class ForgeNetworkHandler extends NetworkHandler {
                             if (blockEntity instanceof SpawnerBlockEntity spawnerBlockEntity) {
                                 SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
                                 Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
-                                if (!disabledPlayers.isEmpty()) {
-                                    sendSpawnerStateToPlayer(player, pos, disabledPlayers, true);
+
+                                boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
+                                        && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
+
+                                if (!disabledPlayers.isEmpty() || treatedAsVanilla) {
+                                    updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, disabledPlayers, treatedAsVanilla));
                                 }
                             }
                         });
@@ -139,8 +134,9 @@ public class ForgeNetworkHandler extends NetworkHandler {
                 }
             }
 
-            if (spawnersFound > 0) {
-                Constants.LOG.info("SERVER: Sent {} spawner states to player {}", spawnersFound, player.getName().getString());
+            if (!updates.isEmpty()) {
+                Constants.LOG.info("SERVER: Sending {} spawner states in batches to player {}", updates.size(), player.getName().getString());
+                sendBatchedStatesToPlayer(player, updates, true);
             }
         }
     }

@@ -5,4 +5,8 @@ import java.util.Set;
 public interface SpawnerDataAccessor {
     Set<String> multiplayerspawners$getDisabledPlayers();
     void multiplayerspawners$setDisabledPlayers(Set<String> players);
+
+    // Player-placed spawner tracking
+    boolean multiplayerspawners$isPlayerPlaced();
+    void multiplayerspawners$setPlayerPlaced(boolean value);
 }

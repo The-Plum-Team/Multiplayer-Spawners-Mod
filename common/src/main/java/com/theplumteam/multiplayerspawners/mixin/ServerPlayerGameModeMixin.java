@@ -86,9 +86,11 @@ public abstract class ServerPlayerGameModeMixin {
         if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
             SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
             Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+            boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
+                    && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
 
             // Send to all players tracking this chunk (but the disabling player already got immediate feedback)
-            NetworkHandler.getInstance().sendSpawnerStateToTracking(level, pos, disabledPlayers);
+            NetworkHandler.getInstance().sendSpawnerStateToTracking(level, pos, disabledPlayers, treatedAsVanilla);
 
             // Force a block entity update to sync NBT data
             level.sendBlockUpdated(pos, level.getBlockState(pos), level.getBlockState(pos), 3);
@@ -109,11 +111,13 @@ public abstract class ServerPlayerGameModeMixin {
         if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
             SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
             Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+            boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
+                    && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
 
             // Send immediate feedback to the player who disabled it
             Constants.LOG.info("SERVER: Sending immediate feedback packet to player {} for spawner at {}",
                     player.getName().getString(), pos);
-            NetworkHandler.getInstance().sendSpawnerStateToPlayer(player, pos, disabledPlayers, false);
+            NetworkHandler.getInstance().sendSpawnerStateToPlayer(player, pos, disabledPlayers, false, treatedAsVanilla);
         }
     }
 
@@ -143,9 +147,11 @@ public abstract class ServerPlayerGameModeMixin {
         if (playersAffected > 0 && level.getBlockEntity(spawnerPos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
             SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
             Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+            boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
+                    && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
 
             // Send updated state to all tracking players (includes the triggering player and newly affected players)
-            NetworkHandler.getInstance().sendSpawnerStateToTracking(level, spawnerPos, disabledPlayers);
+            NetworkHandler.getInstance().sendSpawnerStateToTracking(level, spawnerPos, disabledPlayers, treatedAsVanilla);
 
             triggeringPlayer.displayClientMessage(
                     Component.literal("Group disabling: Spawner disabled for " + playersAffected + " nearby player(s).").withStyle(ChatFormatting.GOLD),
@@ -161,10 +167,12 @@ public abstract class ServerPlayerGameModeMixin {
         if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
             SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
             Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+            boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
+                    && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
 
             // Send immediate visual state refresh packet with high priority
             Constants.debug("Sending forced visual refresh for cancelled break at {} to player {}", pos, player.getName().getString());
-            NetworkHandler.getInstance().sendSpawnerStateToPlayer(player, pos, disabledPlayers, true);
+            NetworkHandler.getInstance().sendSpawnerStateToPlayer(player, pos, disabledPlayers, true, treatedAsVanilla);
 
             // Explicitly reset the client's breaking progress
             player.connection.send(new ClientboundBlockUpdatePacket(pos, level.getBlockState(pos)));
@@ -221,6 +229,22 @@ public abstract class ServerPlayerGameModeMixin {
             boolean isCreative = this.player.isCreative();
             int requiredAttempts = ModConfig.SERVER.requiredBreakAttempts.get();
 
+            // Check if this spawner is player-placed and config allows vanilla behavior
+            if (ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get()) {
+                if (world.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
+                    SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
+                    if (accessor.multiplayerspawners$isPlayerPlaced()) {
+                        // It's a player placed spawner and we treat it as vanilla.
+                        // Allow vanilla break logic to proceed immediately.
+                        if (multiplayerspawners$isDungeonPickaxe(this.player.getMainHandItem())) {
+                            multiplayerspawners$dropEmptySpawner(world, pos, this.player);
+                        }
+                        Constants.LOG.debug("Allowing vanilla break for player-placed spawner at {}", pos);
+                        return; // Let vanilla handle the break
+                    }
+                }
+            }
+
             if (SpawnerStateManager.isSpawnerDisabledForPlayer(world, pos, this.player.getName().getString())) {
                 // Always show explanatory message, but only include break link if allowed
                 boolean canBreak = allowBreaking || isCreative;
@@ -247,7 +271,9 @@ public abstract class ServerPlayerGameModeMixin {
                 if (world.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
                     SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
                     Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
-                    NetworkHandler.getInstance().sendSpawnerStateToTracking(world, pos, disabledPlayers);
+                    boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
+                            && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
+                    NetworkHandler.getInstance().sendSpawnerStateToTracking(world, pos, disabledPlayers, treatedAsVanilla);
                 }
 
                 // Force immediate visual state refresh to prevent texture reset

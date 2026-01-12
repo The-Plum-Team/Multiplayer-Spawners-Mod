@@ -4,12 +4,6 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.world.level.block.Blocks;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.ArrayList;
-import java.util.Comparator;
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.block.SpawnerStateProperties;
 import net.minecraft.client.Minecraft;
@@ -37,6 +31,9 @@ public class ClientSpawnerData {
     // Temporarily lock spawners from client-side updates to prevent race conditions
     private static final Set<BlockPos> lockedSpawners = new HashSet<>();
 
+    // Track spawners that should be treated as vanilla (player-placed with config enabled)
+    private static final Set<BlockPos> vanillaTreatedSpawners = new HashSet<>();
+
     // Cache the current player name to avoid repeated lookups
     private static String cachedPlayerName = null;
 
@@ -48,8 +45,11 @@ public class ClientSpawnerData {
 
     /**
      * Updates the disabled state for a spawner based on the list of disabled players
+     * @param pos The spawner position
+     * @param disabledPlayers Set of player names who have this spawner disabled
+     * @param treatedAsVanilla Whether this spawner should be treated as vanilla (use vanilla texture)
      */
-    public static void updateSpawnerState(BlockPos pos, Set<String> disabledPlayers) {
+    public static void updateSpawnerState(BlockPos pos, Set<String> disabledPlayers, boolean treatedAsVanilla) {
         String currentPlayerName = getCurrentPlayerName();
         if (currentPlayerName == null) {
             Constants.LOG.warn("CLIENT: Cannot update spawner state - no player available");
@@ -59,26 +59,30 @@ public class ClientSpawnerData {
         boolean isDisabledForPlayer = disabledPlayers.contains(currentPlayerName);
         Boolean previousState = playerDisabledSpawners.put(pos, isDisabledForPlayer);
 
-        // Only log and update if the state actually changed
-        if (previousState == null || !previousState.equals(isDisabledForPlayer)) {
-            Constants.LOG.info("CLIENT: Spawner at {} state changed - disabled: {} (was: {})",
-                    pos, isDisabledForPlayer, previousState);
+        boolean wasVanillaTreated = vanillaTreatedSpawners.contains(pos);
+        if (treatedAsVanilla) {
+            vanillaTreatedSpawners.add(pos);
+        } else {
+            vanillaTreatedSpawners.remove(pos);
+        }
 
-            // Mark this spawner as needing a visual update
+        boolean stateChanged = (previousState == null || !previousState.equals(isDisabledForPlayer));
+        boolean treatmentChanged = (wasVanillaTreated != treatedAsVanilla);
+
+        if (stateChanged || treatmentChanged) {
+            Constants.LOG.info("CLIENT: Spawner at {} updated - disabled: {}, treatedAsVanilla: {} (was: disabled={}, vanilla={})",
+                    pos, isDisabledForPlayer, treatedAsVanilla, previousState, wasVanillaTreated);
+
             spawnersNeedingUpdate.add(pos);
 
-            // Attempt immediate visual update with instant flags
             boolean success = updateBlockStateInWorld(pos, isDisabledForPlayer, false);
 
             if (!success) {
-                // If immediate update failed, schedule a retry
                 scheduleRetryUpdate(pos, isDisabledForPlayer);
             } else {
-                // Update succeeded, remove from pending updates
                 spawnersNeedingUpdate.remove(pos);
             }
         } else {
-            // State didn't change, but make sure visual state is correct
             if (isBlockStateOutOfSync(pos, isDisabledForPlayer)) {
                 Constants.LOG.debug("CLIENT: Spawner at {} needs visual sync", pos);
                 spawnersNeedingUpdate.add(pos);
@@ -99,7 +103,14 @@ public class ClientSpawnerData {
         if (!currentState.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) return false;
 
         boolean currentActivated = currentState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED);
-        boolean expectedActivated = !shouldBeDisabled;
+        boolean isVanillaTreated = vanillaTreatedSpawners.contains(pos);
+
+        boolean expectedActivated;
+        if (isVanillaTreated) {
+            expectedActivated = false; // Vanilla texture (MULTIPLAYER_ACTIVATED = false)
+        } else {
+            expectedActivated = !shouldBeDisabled;
+        }
 
         return currentActivated != expectedActivated;
     }
@@ -109,7 +120,6 @@ public class ClientSpawnerData {
      * @return true if the update was successful, false otherwise
      */
     private static boolean updateBlockStateInWorld(BlockPos pos, boolean isDisabledForPlayer, boolean forceUpdate) {
-        // If the spawner is locked, do not apply any updates
         if (lockedSpawners.contains(pos) && !forceUpdate) {
             Constants.LOG.debug("CLIENT: Spawner at {} is locked, skipping update", pos);
             return false;
@@ -122,21 +132,25 @@ public class ClientSpawnerData {
 
         var currentState = minecraft.level.getBlockState(pos);
 
-        // Only process spawner blocks
         if (!(currentState.getBlock() instanceof SpawnerBlock)) {
             return false;
         }
 
-        // Check if the block has our property
         if (!currentState.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
             Constants.LOG.warn("CLIENT: Spawner at {} does not have MULTIPLAYER_ACTIVATED property!", pos);
             return false;
         }
 
         boolean currentActivated = currentState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED);
-        boolean newActivated = !isDisabledForPlayer; // Activated means NOT disabled
+        boolean isVanillaTreated = vanillaTreatedSpawners.contains(pos);
 
-        // Only update if the state actually needs to change OR if we're forcing an update
+        boolean newActivated;
+        if (isVanillaTreated) {
+            newActivated = false; // Vanilla texture (MULTIPLAYER_ACTIVATED = false)
+        } else {
+            newActivated = !isDisabledForPlayer; // Activated means NOT disabled
+        }
+
         if (currentActivated != newActivated || forceUpdate) {
             try {
                 var newState = currentState.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, newActivated);
@@ -145,16 +159,12 @@ public class ClientSpawnerData {
                 // Flag 19 = 1 (BLOCK_UPDATE) + 2 (NOTIFY_LISTENERS) + 16 (FORCE_STATE)
                 minecraft.level.setBlock(pos, newState, 19);
 
-                // Force multiple types of visual updates for immediate feedback
                 forceInstantVisualUpdate(pos, currentState, newState);
-
-                // Lock the spawner for a short period to prevent conflicting updates
                 lockSpawner(pos);
-
-                // Schedule a follow-up update to ensure the state sticks
                 scheduleFollowUpUpdate(pos, newState);
 
-                Constants.LOG.info("CLIENT: INSTANTLY updated spawner visual state at {} to MULTIPLAYER_ACTIVATED={}", pos, newActivated);
+                Constants.LOG.info("CLIENT: INSTANTLY updated spawner visual state at {} to MULTIPLAYER_ACTIVATED={} (treatedAsVanilla={})",
+                        pos, newActivated, isVanillaTreated);
                 return true;
 
             } catch (Exception e) {
@@ -162,7 +172,6 @@ public class ClientSpawnerData {
                 return false;
             }
         } else {
-            // No change needed - remove from pending updates if it was there
             spawnersNeedingUpdate.remove(pos);
             return true;
         }
@@ -172,14 +181,14 @@ public class ClientSpawnerData {
         // Quick Follow-up (50ms)
         new Thread(() -> {
             try {
-                Thread.sleep(50); // 50ms delay
+                Thread.sleep(50);
                 Minecraft.getInstance().execute(() -> {
                     var minecraft = Minecraft.getInstance();
                     if (minecraft.level != null) {
                         var currentState = minecraft.level.getBlockState(pos);
                         if (!currentState.equals(expectedState)) {
                             Constants.LOG.debug("CLIENT: 50ms follow-up needed for {}. Current: {}, Expected: {}", pos, currentState, expectedState);
-                            minecraft.level.setBlock(pos, expectedState, 27); // Flag 27
+                            minecraft.level.setBlock(pos, expectedState, 27);
                         }
                     }
                 });
@@ -191,14 +200,14 @@ public class ClientSpawnerData {
         // Verification (100ms)
         new Thread(() -> {
             try {
-                Thread.sleep(100); // 100ms delay
+                Thread.sleep(100);
                 Minecraft.getInstance().execute(() -> {
                     var minecraft = Minecraft.getInstance();
                     if (minecraft.level != null) {
                         var currentState = minecraft.level.getBlockState(pos);
                         if (!currentState.equals(expectedState)) {
                             Constants.LOG.debug("CLIENT: 100ms verification failed for {}. Correcting state.", pos);
-                            minecraft.level.setBlock(pos, expectedState, 147); // Flag 147 as a stronger backup
+                            minecraft.level.setBlock(pos, expectedState, 147);
                         }
                     }
                 });
@@ -230,32 +239,21 @@ public class ClientSpawnerData {
         if (minecraft.level == null || minecraft.levelRenderer == null) return;
 
         try {
-            // Multiple approaches for maximum instant visual feedback:
-
-            // 1. Force block update notification
             minecraft.level.sendBlockUpdated(pos, oldState, newState, 3);
-
-            // 2. Mark blocks dirty for immediate re-rendering
             minecraft.level.setBlocksDirty(pos, oldState, newState);
-
-            // 3. Mark for immediate re-rendering via level renderer
             minecraft.levelRenderer.setBlocksDirty(pos.getX(), pos.getY(), pos.getZ(), pos.getX(), pos.getY(), pos.getZ());
 
-            // 4. Force chunk section update
             var chunk = minecraft.level.getChunk(pos);
             if (chunk instanceof LevelChunk levelChunk) {
                 levelChunk.setUnsaved(true);
-                // Mark the section containing this block as dirty
                 int sectionX = pos.getX() >> 4;
                 int sectionY = pos.getY() >> 4;
                 int sectionZ = pos.getZ() >> 4;
                 minecraft.level.setSectionDirtyWithNeighbors(sectionX, sectionY, sectionZ);
             }
 
-            // 5. Trigger a level event for additional visual feedback
-            minecraft.level.levelEvent(null, 2001, pos, 0); // Block break effect for visual feedback
+            minecraft.level.levelEvent(null, 2001, pos, 0);
 
-            // 6. Add particle effects for disabled state
             if (!newState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
                 for (int i = 0; i < 10; i++) {
                     minecraft.level.addParticle(ParticleTypes.SMOKE, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 0, 0, 0);
@@ -278,10 +276,9 @@ public class ClientSpawnerData {
 
         Constants.LOG.debug("CLIENT: Scheduling retry update for spawner at {}", pos);
 
-        // Schedule retry after a short delay
         new Thread(() -> {
             try {
-                Thread.sleep(100); // Reduced to 100ms for faster retry
+                Thread.sleep(100);
                 minecraft.execute(() -> {
                     if (playerDisabledSpawners.containsKey(pos)) {
                         boolean success = updateBlockStateInWorld(pos, isDisabledForPlayer, true);
@@ -303,16 +300,26 @@ public class ClientSpawnerData {
         return playerDisabledSpawners.getOrDefault(pos, false);
     }
 
+    /**
+     * Checks if a spawner is being treated as a player-placed (vanilla) spawner.
+     * Player-placed spawners that are treated as vanilla should show normal particles and mob rendering.
+     */
+    public static boolean isPlayerPlacedSpawner(BlockPos pos) {
+        return vanillaTreatedSpawners.contains(pos);
+    }
+
     private static void fallbackBlockReplacement(BlockPos pos, boolean isDisabled) {
         var minecraft = Minecraft.getInstance();
         if (minecraft.level == null) return;
 
-        var originalState = minecraft.level.getBlockState(pos);
-        var airState = Blocks.AIR.defaultBlockState();
-        var spawnerState = Blocks.SPAWNER.defaultBlockState().setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, !isDisabled);
+        boolean isVanillaTreated = vanillaTreatedSpawners.contains(pos);
+        boolean newActivated = isVanillaTreated ? false : !isDisabled;
 
-        minecraft.level.setBlock(pos, airState, 20); // Flag 20 = 4 (DONT_RERENDER) + 16 (FORCE_STATE)
-        minecraft.level.setBlock(pos, spawnerState, 27); // Flag 27
+        var airState = Blocks.AIR.defaultBlockState();
+        var spawnerState = Blocks.SPAWNER.defaultBlockState().setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, newActivated);
+
+        minecraft.level.setBlock(pos, airState, 20);
+        minecraft.level.setBlock(pos, spawnerState, 27);
     }
 
     /**
@@ -321,6 +328,7 @@ public class ClientSpawnerData {
     public static void clearAll() {
         playerDisabledSpawners.clear();
         spawnersNeedingUpdate.clear();
+        vanillaTreatedSpawners.clear();
         cachedPlayerName = null;
         currentDimension = null;
         lastPeriodicRefresh = 0;
@@ -334,10 +342,7 @@ public class ClientSpawnerData {
         Constants.LOG.info("CLIENT: Dimension changed from {} to {}", currentDimension, newDimension);
         currentDimension = newDimension;
 
-        // Mark all spawners as needing updates after dimension change
         spawnersNeedingUpdate.addAll(playerDisabledSpawners.keySet());
-
-        // Schedule a targeted refresh
         scheduleTargetedRefresh();
     }
 
@@ -346,8 +351,6 @@ public class ClientSpawnerData {
      */
     public static void onChunkLoaded(int chunkX, int chunkZ) {
         Constants.LOG.debug("CLIENT: Chunk loaded at {}, {} - checking for spawners needing updates", chunkX, chunkZ);
-
-        // Only check spawners that we know need updates
         refreshSpawnersInChunk(chunkX, chunkZ);
     }
 
@@ -358,7 +361,6 @@ public class ClientSpawnerData {
         var minecraft = Minecraft.getInstance();
         if (minecraft.level == null) return;
 
-        // Create a copy to avoid concurrent modification
         var spawnersToCheck = new HashSet<>(spawnersNeedingUpdate);
 
         for (BlockPos pos : spawnersToCheck) {
@@ -381,6 +383,7 @@ public class ClientSpawnerData {
     public static void removeSpawner(BlockPos pos) {
         playerDisabledSpawners.remove(pos);
         spawnersNeedingUpdate.remove(pos);
+        vanillaTreatedSpawners.remove(pos);
         Constants.LOG.debug("CLIENT: Removed spawner data for {}", pos);
     }
 
@@ -406,12 +409,11 @@ public class ClientSpawnerData {
      */
     public static void refreshPendingSpawnerStates() {
         if (spawnersNeedingUpdate.isEmpty()) {
-            return; // Nothing to do
+            return;
         }
 
         Constants.LOG.info("CLIENT: Refreshing {} spawners that need updates", spawnersNeedingUpdate.size());
 
-        // Create a copy to avoid concurrent modification
         var spawnersToUpdate = new HashSet<>(spawnersNeedingUpdate);
 
         for (BlockPos pos : spawnersToUpdate) {
@@ -433,7 +435,7 @@ public class ClientSpawnerData {
         if (minecraft != null) {
             minecraft.execute(() -> {
                 try {
-                    Thread.sleep(200); // Reduced delay for faster response
+                    Thread.sleep(200);
                     refreshPendingSpawnerStates();
                 } catch (InterruptedException e) {
                     Constants.LOG.warn("CLIENT: Targeted refresh interrupted", e);
@@ -448,14 +450,12 @@ public class ClientSpawnerData {
     public static void periodicRefresh() {
         long currentTime = System.currentTimeMillis();
 
-        // Only run periodic refresh every 30 seconds (instead of 5)
         if (currentTime - lastPeriodicRefresh < 30000) {
             return;
         }
 
         lastPeriodicRefresh = currentTime;
 
-        // Only refresh if we have spawners that need updates
         if (!spawnersNeedingUpdate.isEmpty() && getCurrentPlayerName() != null) {
             Constants.LOG.debug("CLIENT: Periodic check - {} spawners need updates", spawnersNeedingUpdate.size());
             refreshPendingSpawnerStates();
@@ -472,14 +472,12 @@ public class ClientSpawnerData {
 
         Constants.LOG.info("CLIENT: Forcing INSTANT visual update for spawner at {}", pos);
 
-        // Get current data
         Boolean isDisabled = playerDisabledSpawners.get(pos);
         if (isDisabled == null) {
             Constants.LOG.warn("CLIENT: No data for spawner at {} during immediate update", pos);
             return;
         }
 
-        // Try the update immediately with force flag
         boolean success = updateBlockStateInWorld(pos, isDisabled, true);
         if (success) {
             Constants.LOG.info("CLIENT: INSTANT visual update succeeded for spawner at {}", pos);
@@ -506,7 +504,6 @@ public class ClientSpawnerData {
         var spawnersToCorrect = new ArrayList<BlockPos>();
         var spawnersToRemove = new HashSet<BlockPos>();
 
-        // Prioritize spawners closer to the player
         var sortedSpawners = playerDisabledSpawners.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey(Comparator.comparingDouble(pos -> pos.distSqr(playerPos))))
                 .toList();
@@ -514,7 +511,7 @@ public class ClientSpawnerData {
         for (Map.Entry<BlockPos, Boolean> entry : sortedSpawners) {
             BlockPos spawnerPos = entry.getKey();
             if (spawnerPos.distSqr(playerPos) > radius * radius) {
-                continue; // Skip spawners out of range
+                continue;
             }
 
             var currentState = minecraft.level.getBlockState(spawnerPos);
@@ -528,17 +525,23 @@ public class ClientSpawnerData {
             }
 
             boolean isDisabled = entry.getValue();
+            boolean isVanillaTreated = vanillaTreatedSpawners.contains(spawnerPos);
             boolean currentActivated = currentState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED);
-            boolean expectedActivated = !isDisabled;
+
+            boolean expectedActivated;
+            if (isVanillaTreated) {
+                expectedActivated = false; // Vanilla texture
+            } else {
+                expectedActivated = !isDisabled;
+            }
 
             if (currentActivated != expectedActivated) {
-                Constants.debug("MONITOR: Found incorrect spawner state at {}. Expected: {}, Actual: {}. Queueing for correction.", 
-                    spawnerPos, expectedActivated, currentActivated);
+                Constants.debug("MONITOR: Found incorrect spawner state at {}. Expected: {}, Actual: {}. Queueing for correction.",
+                        spawnerPos, expectedActivated, currentActivated);
                 spawnersToCorrect.add(spawnerPos);
             }
         }
 
-        // Batch-correct all incorrect spawners
         if (!spawnersToCorrect.isEmpty()) {
             Constants.debug("MONITOR: Correcting {} incorrect spawner states.", spawnersToCorrect.size());
             for (BlockPos pos : spawnersToCorrect) {
@@ -546,7 +549,6 @@ public class ClientSpawnerData {
                 if (isDisabled != null) {
                     boolean success = updateBlockStateInWorld(pos, isDisabled, true);
                     if (!success) {
-                        // Fallback: Full block replacement
                         Constants.debug("MONITOR: Correction failed for {}. Attempting fallback.", pos);
                         fallbackBlockReplacement(pos, isDisabled);
                     }
@@ -554,11 +556,11 @@ public class ClientSpawnerData {
             }
         }
 
-        // Clean up removed spawners
         if (!spawnersToRemove.isEmpty()) {
             for (BlockPos posToRemove : spawnersToRemove) {
                 playerDisabledSpawners.remove(posToRemove);
                 spawnersNeedingUpdate.remove(posToRemove);
+                vanillaTreatedSpawners.remove(posToRemove);
                 Constants.debug("Removed data for broken spawner at {}", posToRemove);
             }
         }

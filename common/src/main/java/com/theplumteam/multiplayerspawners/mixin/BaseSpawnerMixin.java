@@ -1,6 +1,8 @@
 package com.theplumteam.multiplayerspawners.mixin;
 
 import com.theplumteam.multiplayerspawners.Constants;
+import com.theplumteam.multiplayerspawners.config.ModConfig;
+import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import com.theplumteam.multiplayerspawners.util.SpawnerStateManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -18,6 +20,19 @@ public abstract class BaseSpawnerMixin {
 
     @Inject(method = "serverTick", at = @At("HEAD"), cancellable = true)
     private void multiplayerspawners$onServerTick(ServerLevel level, BlockPos pos, CallbackInfo ci) {
+
+        // Check if this spawner is player-placed and config allows vanilla behavior
+        if (ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get()) {
+            // Cast this BaseSpawner to our accessor
+            if ((Object) this instanceof SpawnerDataAccessor accessor) {
+                if (accessor.multiplayerspawners$isPlayerPlaced()) {
+                    // It's player placed and treated as vanilla.
+                    // Simply return, allowing the vanilla 'serverTick' method to proceed without interruption.
+                    return;
+                }
+            }
+        }
+
         List<Player> nearbyPlayers = level.getEntitiesOfClass(Player.class,
                 new net.minecraft.world.phys.AABB(pos).inflate(16.0)); // 16 block radius, same as spawner range
 

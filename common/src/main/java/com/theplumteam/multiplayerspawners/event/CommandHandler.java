@@ -22,9 +22,46 @@ import java.util.Set;
 
 public class CommandHandler {
 
+    /**
+     * Refreshes all spawner states for all players on the server.
+     * Used when config changes that affect spawner visual appearance.
+     */
+    private static void refreshAllSpawners(net.minecraft.server.MinecraftServer server) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            NetworkHandler.getInstance().sendAllSpawnerStatesToPlayer(player);
+        }
+        Constants.LOG.info("Refreshed spawner states for all {} players", server.getPlayerList().getPlayers().size());
+    }
+
     public static void register(com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("multiplayerspawners")
-                // NEW COMMAND
+                .then(Commands.literal("toggle_placed_vanilla")
+                        .requires(source -> source.hasPermission(2))
+                        .executes(context -> {
+                            boolean current = ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
+                            boolean newValue = !current;
+                            ModConfig.SERVER.treatPlacedSpawnersAsVanilla.set(newValue);
+
+                            String status = newValue ? "TREATED AS VANILLA" : "TREATED AS MULTIPLAYER";
+                            ChatFormatting color = newValue ? ChatFormatting.GREEN : ChatFormatting.GOLD;
+
+                            context.getSource().sendSuccess(() -> Component.literal("Player-placed spawners are now " + status)
+                                    .withStyle(color), true);
+
+                            if (newValue) {
+                                context.getSource().sendSuccess(() -> Component.literal("Spawners placed by players will act like normal vanilla spawners (no torch extinguish, normal break).")
+                                        .withStyle(ChatFormatting.GRAY), false);
+                            } else {
+                                context.getSource().sendSuccess(() -> Component.literal("Spawners placed by players will use full mod mechanics (torch extinguish, multiplayer break logic).")
+                                        .withStyle(ChatFormatting.GRAY), false);
+                            }
+
+                            // Force refresh all spawner states to update visuals immediately
+                            refreshAllSpawners(context.getSource().getServer());
+
+                            return 1;
+                        })
+                )
                 .then(Commands.literal("set_break_attempts")
                         .requires(source -> source.hasPermission(2)) // OP level 2
                         .then(Commands.argument("value", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 10))

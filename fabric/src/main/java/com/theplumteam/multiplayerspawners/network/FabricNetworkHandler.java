@@ -2,6 +2,7 @@ package com.theplumteam.multiplayerspawners.network;
 
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.client.ClientSpawnerData;
+import com.theplumteam.multiplayerspawners.config.ModConfig;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -18,6 +19,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 public class FabricNetworkHandler extends NetworkHandler {
@@ -26,7 +29,6 @@ public class FabricNetworkHandler extends NetworkHandler {
 
     @Override
     public void init() {
-        // Server-side initialization is handled when sending packets
         Constants.LOG.info("Fabric network handler initialized");
     }
 
@@ -34,7 +36,6 @@ public class FabricNetworkHandler extends NetworkHandler {
     public static void initClient() {
         ClientPlayNetworking.registerGlobalReceiver(SPAWNER_STATE_PACKET_ID, (client, handler, buf, responseSender) -> {
             SpawnerStatePacket packet = new SpawnerStatePacket(buf);
-            // Execute immediately on main thread for instant visual updates
             client.execute(() -> {
                 handleClientPacket(packet);
             });
@@ -44,72 +45,62 @@ public class FabricNetworkHandler extends NetworkHandler {
 
     @Environment(EnvType.CLIENT)
     private static void handleClientPacket(SpawnerStatePacket packet) {
-        if (!packet.isChecksumValid()) {
-            Constants.LOG.warn("CLIENT: Received corrupted spawner state packet for pos {}", packet.getPos());
-            return;
+        for (SpawnerStatePacket.SpawnerUpdate update : packet.getUpdates()) {
+            ClientSpawnerData.updateSpawnerState(update.pos, update.disabledPlayers, update.treatedAsVanilla);
         }
-
-        Constants.LOG.debug("CLIENT: Received spawner state packet for pos {} with disabled players: {}",
-                packet.getPos(), packet.getDisabledPlayers());
-
-        // This single call now handles both the data update and the necessary visual update.
-        ClientSpawnerData.updateSpawnerState(packet.getPos(), packet.getDisabledPlayers());
     }
 
     @Override
-    public void sendSpawnerStateToPlayer(ServerPlayer player, BlockPos pos, Set<String> disabledPlayers, boolean isFullSync) {
+    public void sendSpawnerStateToPlayer(ServerPlayer player, BlockPos pos, Set<String> disabledPlayers, boolean isFullSync, boolean treatedAsVanilla) {
         FriendlyByteBuf buf = PacketByteBufs.create();
-        SpawnerStatePacket packet = new SpawnerStatePacket(pos, disabledPlayers, isFullSync);
+        SpawnerStatePacket packet = new SpawnerStatePacket(pos, disabledPlayers, isFullSync, treatedAsVanilla);
         packet.write(buf);
-
-        Constants.LOG.info("SERVER: Sending PRIORITY spawner state packet to player {} for pos {} with disabled players: {}",
-                player.getName().getString(), pos, disabledPlayers);
-
-        // Send with high priority for immediate delivery
         ServerPlayNetworking.send(player, SPAWNER_STATE_PACKET_ID, buf);
-
-        // Send a redundant packet after a short delay
-        new Thread(() -> {
-            try {
-                Thread.sleep(100);
-                ServerPlayNetworking.send(player, SPAWNER_STATE_PACKET_ID, buf);
-            } catch (InterruptedException e) {
-                // Ignore
-            }
-        }).start();
+        // CRASH FIX: Removed threaded redundant send
     }
 
     @Override
-    public void sendSpawnerStateToTracking(Level level, BlockPos pos, Set<String> disabledPlayers) {
+    public void sendSpawnerStateToTracking(Level level, BlockPos pos, Set<String> disabledPlayers, boolean treatedAsVanilla) {
         if (level instanceof ServerLevel serverLevel) {
             FriendlyByteBuf buf = PacketByteBufs.create();
-            SpawnerStatePacket packet = new SpawnerStatePacket(pos, disabledPlayers, false);
+            SpawnerStatePacket packet = new SpawnerStatePacket(pos, disabledPlayers, false, treatedAsVanilla);
             packet.write(buf);
 
-            Constants.LOG.debug("SERVER: Sending spawner state to all tracking players for pos {}", pos);
-
-            // Send to all players tracking this position
             for (ServerPlayer player : PlayerLookup.tracking(serverLevel, pos)) {
-                ServerPlayNetworking.send(player, SPAWNER_STATE_PACKET_ID, buf);
+                FriendlyByteBuf playerBuf = PacketByteBufs.create();
+                packet.write(playerBuf);
+                ServerPlayNetworking.send(player, SPAWNER_STATE_PACKET_ID, playerBuf);
             }
+        }
+    }
+
+    @Override
+    protected void sendBatchedStatesToPlayer(ServerPlayer player, List<SpawnerStatePacket.SpawnerUpdate> updates, boolean isFullSync) {
+        if (updates.isEmpty()) return;
+
+        int batchSize = 100;
+        for (int i = 0; i < updates.size(); i += batchSize) {
+            int end = Math.min(updates.size(), i + batchSize);
+            List<SpawnerStatePacket.SpawnerUpdate> batch = updates.subList(i, end);
+
+            FriendlyByteBuf buf = PacketByteBufs.create();
+            SpawnerStatePacket packet = new SpawnerStatePacket(batch, isFullSync);
+            packet.write(buf);
+
+            ServerPlayNetworking.send(player, SPAWNER_STATE_PACKET_ID, buf);
         }
     }
 
     @Override
     public void sendAllSpawnerStatesToPlayer(ServerPlayer player) {
         if (player.level() instanceof ServerLevel serverLevel) {
-            Constants.LOG.info("SERVER: Sending all spawner states to player {} in dimension {}",
-                    player.getName().getString(), serverLevel.dimension().location());
-
-            // Get the view distance to determine which chunks to check
             int viewDistance = serverLevel.getServer().getPlayerList().getViewDistance();
             BlockPos playerPos = player.blockPosition();
             int chunkX = playerPos.getX() >> 4;
             int chunkZ = playerPos.getZ() >> 4;
 
-            final int[] spawnersFound = {0}; // Use array to work with lambda
+            List<SpawnerStatePacket.SpawnerUpdate> updates = new ArrayList<>();
 
-            // Iterate through chunks within view distance
             for (int dx = -viewDistance; dx <= viewDistance; dx++) {
                 for (int dz = -viewDistance; dz <= viewDistance; dz++) {
                     LevelChunk chunk = serverLevel.getChunk(chunkX + dx, chunkZ + dz);
@@ -118,9 +109,11 @@ public class FabricNetworkHandler extends NetworkHandler {
                             if (blockEntity instanceof SpawnerBlockEntity spawnerBlockEntity) {
                                 SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
                                 Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
-                                if (!disabledPlayers.isEmpty()) {
-                                    sendSpawnerStateToPlayer(player, pos, disabledPlayers, true);
-                                    spawnersFound[0]++;
+                                boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
+                                        && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
+
+                                if (!disabledPlayers.isEmpty() || treatedAsVanilla) {
+                                    updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, disabledPlayers, treatedAsVanilla));
                                 }
                             }
                         });
@@ -128,8 +121,8 @@ public class FabricNetworkHandler extends NetworkHandler {
                 }
             }
 
-            if (spawnersFound[0] > 0) {
-                Constants.LOG.info("SERVER: Sent {} spawner states to player {}", spawnersFound[0], player.getName().getString());
+            if (!updates.isEmpty()) {
+                sendBatchedStatesToPlayer(player, updates, true);
             }
         }
     }

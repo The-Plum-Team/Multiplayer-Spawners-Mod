@@ -31,9 +31,10 @@ public class ModConfig {
         public final ForgeConfigSpec.IntValue groupDisablingRadius;
         public final ForgeConfigSpec.IntValue torchExtinguishDelaySeconds;
         public final ForgeConfigSpec.BooleanValue allowSpawnerBreakMessage;
-
-        // NEW CONFIG OPTION
         public final ForgeConfigSpec.IntValue requiredBreakAttempts;
+
+        // Player-placed spawner behavior
+        public final ForgeConfigSpec.BooleanValue treatPlacedSpawnersAsVanilla;
 
         public ServerConfig(ForgeConfigSpec.Builder builder) {
             builder.comment("MultiplayerSpawners Configuration")
@@ -47,6 +48,12 @@ public class ModConfig {
                     .comment("Radius in blocks to search for other players when group disabling is enabled",
                             "Players within this radius will have their spawners disabled when someone disables a spawner")
                     .defineInRange("groupDisablingRadius", 20, 1, 100);
+
+            treatPlacedSpawnersAsVanilla = builder
+                    .comment("If true, spawners placed by players (not generated naturally) will behave like Vanilla spawners.",
+                            "They will NOT extinguish torches and can be broken instantly by everyone.",
+                            "Use /multiplayerspawners toggle_placed_vanilla to change this in-game.")
+                    .define("treatPlacedSpawnersAsVanilla", true);
 
             builder.pop();
 

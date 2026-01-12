@@ -15,6 +15,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.WallTorchBlock;
+import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
@@ -110,6 +111,7 @@ public class TorchTracker {
     /**
      * Performs a localized search for the nearest spawner within SPAWNER_DISTANCE of a given position.
      * This is much more efficient than checking against a dimension-wide cache.
+     * Player-placed spawners are ignored if the config option treatPlacedSpawnersAsVanilla is enabled.
      * @return The BlockPos of the nearest spawner, or null if none are in range.
      */
     private static BlockPos findNearbySpawner(Level level, BlockPos centerPos) {
@@ -121,6 +123,18 @@ public class TorchTracker {
         for (BlockPos pos : BlockPos.betweenClosed(centerPos.offset(-SPAWNER_DISTANCE, -SPAWNER_DISTANCE, -SPAWNER_DISTANCE),
                 centerPos.offset(SPAWNER_DISTANCE, SPAWNER_DISTANCE, SPAWNER_DISTANCE))) {
             if (level.getBlockState(pos).is(Blocks.SPAWNER)) {
+
+                // Check if this spawner is player-placed and should be treated as vanilla
+                if (ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get()) {
+                    if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
+                        SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
+                        if (accessor.multiplayerspawners$isPlayerPlaced()) {
+                            // Ignore this spawner, it's treated as vanilla (no torch extinguishing)
+                            continue;
+                        }
+                    }
+                }
+
                 double distSq = centerPos.distSqr(pos);
                 // We only care about spawners within the spherical distance and closer than any previously found
                 if (distSq <= SPAWNER_DISTANCE * SPAWNER_DISTANCE && distSq < nearestDistSq) {
@@ -191,11 +205,12 @@ public class TorchTracker {
         long currentTime = server.getTickCount();
         int extinguishDelayTicks = getExtinguishDelayTicks();
 
-        if (currentTime % 100 == 0) {
+        // Log torch tracking status less frequently (every 30 seconds instead of every 5 seconds)
+        if (currentTime % 600 == 0) {
             int totalTorches = trackedTorches.values().stream().mapToInt(Map::size).sum();
             if (totalTorches > 0) {
-                Constants.LOG.info("DEBUG: Server tick {}, tracking {} threatened torches total across {} dimensions (delay: {}s)",
-                        currentTime, totalTorches, trackedTorches.size(), extinguishDelayTicks / 20);
+                Constants.LOG.debug("Tracking {} threatened torches across {} dimensions (delay: {}s)",
+                        totalTorches, trackedTorches.size(), extinguishDelayTicks / 20);
             }
         }
 
@@ -217,6 +232,17 @@ public class TorchTracker {
                 BlockPos pos = entry.getKey();
                 long placementTime = entry.getValue();
                 long ticksElapsed = currentTime - placementTime;
+
+                // OPTIMIZATION: Only process this torch once every 20 ticks (1 second)
+                // Use hash code to stagger the checks across different ticks
+                // This distributes the load so not all torches are checked in the same tick
+                if ((currentTime + pos.hashCode()) % 20 != 0) {
+                    // Still check if the delay definitely passed to avoid missing torches
+                    // that have been waiting longer than the check interval
+                    if (ticksElapsed < extinguishDelayTicks + 20) {
+                        continue;
+                    }
+                }
 
                 if (ticksElapsed >= extinguishDelayTicks) {
                     iterator.remove();

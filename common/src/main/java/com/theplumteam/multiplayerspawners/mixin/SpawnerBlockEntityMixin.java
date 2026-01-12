@@ -23,6 +23,9 @@ public class SpawnerBlockEntityMixin implements SpawnerDataAccessor {
     @Unique
     private final Set<String> multiplayerspawners$disabledPlayers = Sets.newHashSet();
 
+    @Unique
+    private boolean multiplayerspawners$isPlayerPlaced = false;
+
     @Override
     public Set<String> multiplayerspawners$getDisabledPlayers() {
         return this.multiplayerspawners$disabledPlayers;
@@ -34,17 +37,36 @@ public class SpawnerBlockEntityMixin implements SpawnerDataAccessor {
         this.multiplayerspawners$disabledPlayers.addAll(players);
     }
 
+    @Override
+    public boolean multiplayerspawners$isPlayerPlaced() {
+        return this.multiplayerspawners$isPlayerPlaced;
+    }
+
+    @Override
+    public void multiplayerspawners$setPlayerPlaced(boolean value) {
+        this.multiplayerspawners$isPlayerPlaced = value;
+    }
+
     // FIXED: The signature of the target `load` method is load(Level, BlockPos, CompoundTag).
     // We must match these parameters exactly for the mixin to apply correctly.
     // To be extra safe, we specify the full method signature in the 'method' attribute.
     @Inject(method = "load(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/nbt/CompoundTag;)V", at = @At("RETURN"))
     private void multiplayerspawners$onLoad(Level level, BlockPos pos, CompoundTag nbt, CallbackInfo ci) {
         this.multiplayerspawners$disabledPlayers.clear();
+        this.multiplayerspawners$isPlayerPlaced = false;
+
         if (nbt.contains("MultiplayerSpawnersData", 10)) {
             CompoundTag ourTag = nbt.getCompound("MultiplayerSpawnersData");
+
+            // Load disabled players
             ListTag players = ourTag.getList("DisabledPlayers", 8); // 8 = String NBT Type
             for (int i = 0; i < players.size(); i++) {
                 this.multiplayerspawners$disabledPlayers.add(players.getString(i));
+            }
+
+            // Load player-placed flag
+            if (ourTag.contains("IsPlayerPlaced")) {
+                this.multiplayerspawners$isPlayerPlaced = ourTag.getBoolean("IsPlayerPlaced");
             }
         }
     }
@@ -52,13 +74,23 @@ public class SpawnerBlockEntityMixin implements SpawnerDataAccessor {
     // This method is correct because SpawnerBlockEntity calls the save(CompoundTag) version.
     @Inject(method = "save(Lnet/minecraft/nbt/CompoundTag;)Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"))
     private void multiplayerspawners$onSave(CompoundTag nbt, CallbackInfoReturnable<CompoundTag> cir) {
-        if (!this.multiplayerspawners$disabledPlayers.isEmpty()) {
+        if (!this.multiplayerspawners$disabledPlayers.isEmpty() || this.multiplayerspawners$isPlayerPlaced) {
             CompoundTag ourTag = new CompoundTag();
-            ListTag players = new ListTag();
-            for (String playerName : this.multiplayerspawners$disabledPlayers) {
-                players.add(StringTag.valueOf(playerName));
+
+            // Save disabled players
+            if (!this.multiplayerspawners$disabledPlayers.isEmpty()) {
+                ListTag players = new ListTag();
+                for (String playerName : this.multiplayerspawners$disabledPlayers) {
+                    players.add(StringTag.valueOf(playerName));
+                }
+                ourTag.put("DisabledPlayers", players);
             }
-            ourTag.put("DisabledPlayers", players);
+
+            // Save player-placed flag
+            if (this.multiplayerspawners$isPlayerPlaced) {
+                ourTag.putBoolean("IsPlayerPlaced", true);
+            }
+
             nbt.put("MultiplayerSpawnersData", ourTag);
         }
     }

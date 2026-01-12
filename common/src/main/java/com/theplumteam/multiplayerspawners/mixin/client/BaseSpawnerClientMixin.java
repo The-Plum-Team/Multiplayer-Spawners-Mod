@@ -18,12 +18,18 @@ public class BaseSpawnerClientMixin {
 
     /**
      * Cancels client-side particle effects and animations when the spawner is disabled for the current player.
+     * Player-placed spawners are NOT affected - they always show normal effects.
      */
     @Inject(method = "clientTick", at = @At("HEAD"), cancellable = true)
     private void multiplayerspawners$onClientTick(Level level, BlockPos pos, CallbackInfo ci) {
         // Only run on client side
         if (!level.isClientSide()) {
             return;
+        }
+
+        // Player-placed spawners should always show particles (vanilla behavior)
+        if (ClientSpawnerData.isPlayerPlacedSpawner(pos)) {
+            return; // Let vanilla behavior proceed
         }
 
         // Check if this spawner is disabled for the current player
@@ -38,13 +44,21 @@ public class BaseSpawnerClientMixin {
     /**
      * Prevents the mob inside the spawner from being rendered when the spawner is disabled for the current player.
      * The renderer calls this method to get the entity to display. By returning null, we render nothing.
+     * Player-placed spawners are NOT affected - they always show the mob.
      */
     @Inject(method = "getOrCreateDisplayEntity", at = @At("HEAD"), cancellable = true)
     private void multiplayerspawners$hideDisplayEntity(Level level, RandomSource random, BlockPos pos, CallbackInfoReturnable<Entity> cir) {
         // This method is only used on the client for rendering, but checking is good practice.
-        if (level.isClientSide() && ClientSpawnerData.isSpawnerDisabledForCurrentPlayer(pos)) {
-            // Cancel the original method and return null, so the renderer has no entity to draw.
-            cir.setReturnValue(null);
+        if (level.isClientSide()) {
+            // Player-placed spawners should always show the mob (vanilla behavior)
+            if (ClientSpawnerData.isPlayerPlacedSpawner(pos)) {
+                return; // Let vanilla behavior proceed
+            }
+
+            if (ClientSpawnerData.isSpawnerDisabledForCurrentPlayer(pos)) {
+                // Cancel the original method and return null, so the renderer has no entity to draw.
+                cir.setReturnValue(null);
+            }
         }
     }
 }
