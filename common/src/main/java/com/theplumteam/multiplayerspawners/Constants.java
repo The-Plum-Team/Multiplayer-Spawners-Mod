@@ -13,7 +13,8 @@ public class Constants {
 	}
 
 	public static void debug(String message, Object... args) {
-		if (ModConfig.CLIENT.enableDebugLogging.get()) {
+		// Only check client config if it's actually loaded (not available on dedicated servers)
+		if (ModConfig.CLIENT_SPEC.isLoaded() && ModConfig.CLIENT.enableDebugLogging.get()) {
 			LOG.info("[DEBUG] " + message, args);
 		}
 	}
