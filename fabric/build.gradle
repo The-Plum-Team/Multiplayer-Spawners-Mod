@@ -22,8 +22,8 @@ dependencies {
     implementation group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.1'
     implementation project(":common")
 
-    // FIXED: Correct version for Minecraft 1.20.1 Fabric
-    modImplementation "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:8.0.1"
+    // Forge Config API Port for Fabric - 1.21.1
+    modImplementation "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:21.1.6"
 }
 
 loom {

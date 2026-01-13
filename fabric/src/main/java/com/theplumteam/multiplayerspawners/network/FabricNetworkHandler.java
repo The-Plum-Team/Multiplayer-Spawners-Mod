@@ -7,12 +7,10 @@ import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
@@ -20,56 +18,53 @@ import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 public class FabricNetworkHandler extends NetworkHandler {
 
-    public static final ResourceLocation SPAWNER_STATE_PACKET_ID = new ResourceLocation(Constants.MOD_ID, "spawner_state");
-
     @Override
     public void init() {
+        // Register payload on the server side
+        PayloadTypeRegistry.playS2C().register(SpawnerStatePayload.TYPE, SpawnerStatePayload.STREAM_CODEC);
         Constants.LOG.info("Fabric network handler initialized");
     }
 
     @Environment(EnvType.CLIENT)
     public static void initClient() {
-        ClientPlayNetworking.registerGlobalReceiver(SPAWNER_STATE_PACKET_ID, (client, handler, buf, responseSender) -> {
-            SpawnerStatePacket packet = new SpawnerStatePacket(buf);
-            client.execute(() -> {
-                handleClientPacket(packet);
+        ClientPlayNetworking.registerGlobalReceiver(SpawnerStatePayload.TYPE, (payload, context) -> {
+            context.client().execute(() -> {
+                handleClientPacket(payload);
             });
         });
-        Constants.LOG.info("Fabric client network handler initialized with instant packet processing");
+        Constants.LOG.info("Fabric client network handler initialized with payload processing");
     }
 
     @Environment(EnvType.CLIENT)
-    private static void handleClientPacket(SpawnerStatePacket packet) {
-        for (SpawnerStatePacket.SpawnerUpdate update : packet.getUpdates()) {
+    private static void handleClientPacket(SpawnerStatePayload payload) {
+        for (SpawnerStatePacket.SpawnerUpdate update : payload.updates()) {
             ClientSpawnerData.updateSpawnerState(update.pos, update.disabledPlayers, update.treatedAsVanilla);
         }
     }
 
     @Override
     public void sendSpawnerStateToPlayer(ServerPlayer player, BlockPos pos, Set<String> disabledPlayers, boolean isFullSync, boolean treatedAsVanilla) {
-        FriendlyByteBuf buf = PacketByteBufs.create();
-        SpawnerStatePacket packet = new SpawnerStatePacket(pos, disabledPlayers, isFullSync, treatedAsVanilla);
-        packet.write(buf);
-        ServerPlayNetworking.send(player, SPAWNER_STATE_PACKET_ID, buf);
-        // CRASH FIX: Removed threaded redundant send
+        List<SpawnerStatePacket.SpawnerUpdate> updates = new ArrayList<>();
+        updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, new HashSet<>(disabledPlayers), treatedAsVanilla));
+        SpawnerStatePayload payload = new SpawnerStatePayload(updates, isFullSync);
+        ServerPlayNetworking.send(player, payload);
     }
 
     @Override
     public void sendSpawnerStateToTracking(Level level, BlockPos pos, Set<String> disabledPlayers, boolean treatedAsVanilla) {
         if (level instanceof ServerLevel serverLevel) {
-            FriendlyByteBuf buf = PacketByteBufs.create();
-            SpawnerStatePacket packet = new SpawnerStatePacket(pos, disabledPlayers, false, treatedAsVanilla);
-            packet.write(buf);
+            List<SpawnerStatePacket.SpawnerUpdate> updates = new ArrayList<>();
+            updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, new HashSet<>(disabledPlayers), treatedAsVanilla));
+            SpawnerStatePayload payload = new SpawnerStatePayload(updates, false);
 
             for (ServerPlayer player : PlayerLookup.tracking(serverLevel, pos)) {
-                FriendlyByteBuf playerBuf = PacketByteBufs.create();
-                packet.write(playerBuf);
-                ServerPlayNetworking.send(player, SPAWNER_STATE_PACKET_ID, playerBuf);
+                ServerPlayNetworking.send(player, payload);
             }
         }
     }
@@ -82,12 +77,8 @@ public class FabricNetworkHandler extends NetworkHandler {
         for (int i = 0; i < updates.size(); i += batchSize) {
             int end = Math.min(updates.size(), i + batchSize);
             List<SpawnerStatePacket.SpawnerUpdate> batch = updates.subList(i, end);
-
-            FriendlyByteBuf buf = PacketByteBufs.create();
-            SpawnerStatePacket packet = new SpawnerStatePacket(batch, isFullSync);
-            packet.write(buf);
-
-            ServerPlayNetworking.send(player, SPAWNER_STATE_PACKET_ID, buf);
+            SpawnerStatePayload payload = new SpawnerStatePayload(batch, isFullSync);
+            ServerPlayNetworking.send(player, payload);
         }
     }
 

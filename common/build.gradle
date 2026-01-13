@@ -1,12 +1,12 @@
 plugins {
     id 'multiloader-common'
-    id 'net.neoforged.moddev.legacyforge'
+    id 'net.neoforged.moddev'
 }
 
-legacyForge {
-    mcpVersion = minecraft_version
+neoForge {
+    neoFormVersion = "1.21.1-20240808.144430"
     if (file("src/main/resources/META-INF/accesstransformer.cfg").exists()) {
-        accessTransformers = ["src/main/resources/META-INF/accesstransformer.cfg"]
+        accessTransformers = [file("src/main/resources/META-INF/accesstransformer.cfg")]
     }
     parchment {
         minecraftVersion = parchment_minecraft
@@ -23,11 +23,11 @@ repositories {
 }
 
 dependencies {
-    compileOnly group: 'org.spongepowered', name: 'mixin', version: '0.8.5'
+    compileOnly group: 'org.spongepowered', name: 'mixin', version: '0.8.7'
     implementation group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.1'
 
-    // FIXED: Correct version and repository for Minecraft 1.20.1
-    api "fuzs.forgeconfigapiport:forgeconfigapiport-common:8.0.1"
+    // Forge Config API Port for common module - 1.21.1 (NeoForge API)
+    api "fuzs.forgeconfigapiport:forgeconfigapiport-common-neoforgeapi:21.1.6"
 }
 
 configurations {

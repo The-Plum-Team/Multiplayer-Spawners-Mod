@@ -1,23 +1,16 @@
 plugins {
     id 'multiloader-loader'
-    id 'net.neoforged.moddev.legacyforge'
+    id 'net.neoforged.moddev'
 }
 
-mixin {
-    add(sourceSets.main, "${mod_id}.refmap.json")
-
-    config("${mod_id}.mixins.json")
-    config("${mod_id}.forge.mixins.json")
-}
-
-legacyForge {
-    version = "${minecraft_version}-${forge_version}"
+neoForge {
+    version = neoforge_version
 
     validateAccessTransformers = true
 
     def at = project(':common').file('src/main/resources/META-INF/accesstransformer.cfg')
     if (at.exists()) {
-        accessTransformers = ["src/main/resources/META-INF/accesstransformer.cfg"]
+        accessTransformers = [file("src/main/resources/META-INF/accesstransformer.cfg")]
     }
     parchment {
         minecraftVersion = parchment_minecraft
@@ -47,15 +40,10 @@ sourceSets.main.resources.srcDir 'src/generated/resources'
 
 dependencies {
     compileOnly project(":common")
-    annotationProcessor("org.spongepowered:mixin:0.8.5-SNAPSHOT:processor")
-
-    // FIXED: For Forge, the config API is already included, no additional dependency needed
-    // Just ensure compatibility with the common module version
 }
 
 jar {
-    finalizedBy('reobfJar')
     manifest.attributes([
-            "MixinConfigs": "${mod_id}.mixins.json,${mod_id}.forge.mixins.json"
+            "MixinConfigs": "${mod_id}.mixins.json,${mod_id}.neoforge.mixins.json"
     ])
 }

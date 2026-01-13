@@ -1,43 +1,43 @@
 package com.theplumteam.multiplayerspawners.platform;
 
 import com.theplumteam.multiplayerspawners.Constants;
-import com.theplumteam.multiplayerspawners.config.ForgeConfigRegistry;
-import com.theplumteam.multiplayerspawners.network.ForgeNetworkHandler;
+import com.theplumteam.multiplayerspawners.config.NeoForgeConfigRegistry;
+import com.theplumteam.multiplayerspawners.network.NeoForgeNetworkHandler;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
 import com.theplumteam.multiplayerspawners.platform.services.IPlatformHelper;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.fml.loading.FMLLoader;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.RegistryObject;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.loading.FMLLoader;
+import net.neoforged.neoforge.registries.DeferredRegister;
 
 import java.util.function.Supplier;
 
-public class ForgePlatformHelper implements IPlatformHelper {
+public class NeoForgePlatformHelper implements IPlatformHelper {
 
     private static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(Registries.BLOCK, Constants.MOD_ID);
     private static final DeferredRegister<Item> ITEMS = DeferredRegister.create(Registries.ITEM, Constants.MOD_ID);
 
-    public void register() {
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+    public void register(IEventBus modEventBus) {
         BLOCKS.register(modEventBus);
         ITEMS.register(modEventBus);
     }
 
     @Override
+    public void register() {
+        // No-op for NeoForge - registration is done via register(IEventBus)
+    }
+
+    @Override
     public String getPlatformName() {
-        return "Forge";
+        return "NeoForge";
     }
 
     @Override
     public String getEnvironmentName() {
-        return FMLLoader.getNaming();
+        return FMLLoader.isProduction() ? "production" : "development";
     }
 
     @Override
@@ -62,17 +62,16 @@ public class ForgePlatformHelper implements IPlatformHelper {
 
     @Override
     public <T extends Item> Supplier<T> registerItem(String name, Supplier<T> item) {
-        RegistryObject<T> registryObject = ITEMS.register(name, item);
-        return registryObject;
+        return ITEMS.register(name, item);
     }
 
     @Override
     public void initializeConfig() {
-        ForgeConfigRegistry.register();
+        NeoForgeConfigRegistry.register();
     }
-    
+
     @Override
     public NetworkHandler createNetworkHandler() {
-        return new ForgeNetworkHandler();
+        return new NeoForgeNetworkHandler();
     }
 }

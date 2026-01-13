@@ -2,15 +2,17 @@ package com.theplumteam.multiplayerspawners.client;
 
 import com.theplumteam.multiplayerspawners.Constants;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.level.ChunkEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.level.ChunkEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 
-@Mod.EventBusSubscriber(modid = Constants.MOD_ID, value = Dist.CLIENT)
-public class ForgeClientEvents {
+@EventBusSubscriber(modid = Constants.MOD_ID, value = Dist.CLIENT)
+public class NeoForgeClientEvents {
 
     /**
      * Clear client-side spawner data when disconnecting from a server
@@ -38,10 +40,8 @@ public class ForgeClientEvents {
      * Handle client ticks for dimension change detection and periodic updates
      */
     @SubscribeEvent
-    public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase == TickEvent.Phase.END) {
-            ClientEventHandler.onClientTick();
-        }
+    public static void onClientTick(ClientTickEvent.Post event) {
+        ClientEventHandler.onClientTick();
     }
 
     /**
@@ -50,7 +50,7 @@ public class ForgeClientEvents {
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
         // Only handle client-side chunk loading
-        if (event.getLevel().isClientSide() && event.getChunk() instanceof net.minecraft.world.level.chunk.LevelChunk chunk) {
+        if (event.getLevel().isClientSide() && event.getChunk() instanceof LevelChunk chunk) {
             Constants.LOG.debug("CLIENT: Chunk load event for {}, {}", chunk.getPos().x, chunk.getPos().z);
             ClientEventHandler.onChunkLoad(chunk);
         }
@@ -62,7 +62,7 @@ public class ForgeClientEvents {
     @SubscribeEvent
     public static void onChunkUnload(ChunkEvent.Unload event) {
         // Only handle client-side chunk unloading
-        if (event.getLevel().isClientSide() && event.getChunk() instanceof net.minecraft.world.level.chunk.LevelChunk chunk) {
+        if (event.getLevel().isClientSide() && event.getChunk() instanceof LevelChunk chunk) {
             Constants.LOG.debug("CLIENT: Chunk unload event for {}, {}", chunk.getPos().x, chunk.getPos().z);
             ClientEventHandler.onChunkUnload(chunk);
         }
@@ -72,7 +72,7 @@ public class ForgeClientEvents {
      * Handle player respawn events
      */
     @SubscribeEvent
-    public static void onPlayerRespawn(net.minecraftforge.event.entity.player.PlayerEvent.PlayerRespawnEvent event) {
+    public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         // Only handle client-side respawn events
         if (event.getEntity().level().isClientSide() && event.getEntity() == Minecraft.getInstance().player) {
             Constants.LOG.info("CLIENT: Player respawn event detected");
@@ -84,7 +84,7 @@ public class ForgeClientEvents {
      * Handle dimension change events
      */
     @SubscribeEvent
-    public static void onPlayerChangeDimension(net.minecraftforge.event.entity.player.PlayerEvent.PlayerChangedDimensionEvent event) {
+    public static void onPlayerChangeDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
         // Only handle client-side dimension changes
         if (event.getEntity().level().isClientSide() && event.getEntity() == Minecraft.getInstance().player) {
             Constants.LOG.info("CLIENT: Player dimension change event detected from {} to {}",

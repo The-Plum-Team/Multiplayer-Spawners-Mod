@@ -1,6 +1,6 @@
 package com.theplumteam.multiplayerspawners.config;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 import org.apache.commons.lang3.tuple.Pair;
 
 /**
@@ -10,33 +10,33 @@ import org.apache.commons.lang3.tuple.Pair;
 public class ModConfig {
 
     public static final ServerConfig SERVER;
-    public static final ForgeConfigSpec SERVER_SPEC;
+    public static final ModConfigSpec SERVER_SPEC;
 
     public static final ClientConfig CLIENT;
-    public static final ForgeConfigSpec CLIENT_SPEC;
+    public static final ModConfigSpec CLIENT_SPEC;
     public static boolean isClientConfigLoaded = false;
 
     static {
-        final Pair<ServerConfig, ForgeConfigSpec> serverSpecPair = new ForgeConfigSpec.Builder().configure(ServerConfig::new);
+        final Pair<ServerConfig, ModConfigSpec> serverSpecPair = new ModConfigSpec.Builder().configure(ServerConfig::new);
         SERVER_SPEC = serverSpecPair.getRight();
         SERVER = serverSpecPair.getLeft();
 
-        final Pair<ClientConfig, ForgeConfigSpec> clientSpecPair = new ForgeConfigSpec.Builder().configure(ClientConfig::new);
+        final Pair<ClientConfig, ModConfigSpec> clientSpecPair = new ModConfigSpec.Builder().configure(ClientConfig::new);
         CLIENT_SPEC = clientSpecPair.getRight();
         CLIENT = clientSpecPair.getLeft();
     }
 
     public static class ServerConfig {
-        public final ForgeConfigSpec.BooleanValue enableGroupDisabling;
-        public final ForgeConfigSpec.IntValue groupDisablingRadius;
-        public final ForgeConfigSpec.IntValue torchExtinguishDelaySeconds;
-        public final ForgeConfigSpec.BooleanValue allowSpawnerBreakMessage;
-        public final ForgeConfigSpec.IntValue requiredBreakAttempts;
+        public final ModConfigSpec.BooleanValue enableGroupDisabling;
+        public final ModConfigSpec.IntValue groupDisablingRadius;
+        public final ModConfigSpec.IntValue torchExtinguishDelaySeconds;
+        public final ModConfigSpec.BooleanValue allowSpawnerBreakMessage;
+        public final ModConfigSpec.IntValue requiredBreakAttempts;
 
         // Player-placed spawner behavior
-        public final ForgeConfigSpec.BooleanValue treatPlacedSpawnersAsVanilla;
+        public final ModConfigSpec.BooleanValue treatPlacedSpawnersAsVanilla;
 
-        public ServerConfig(ForgeConfigSpec.Builder builder) {
+        public ServerConfig(ModConfigSpec.Builder builder) {
             builder.comment("MultiplayerSpawners Configuration")
                     .push("general");
 
@@ -91,9 +91,9 @@ public class ModConfig {
     }
 
     public static class ClientConfig {
-        public final ForgeConfigSpec.BooleanValue enableDebugLogging;
+        public final ModConfigSpec.BooleanValue enableDebugLogging;
 
-        public ClientConfig(ForgeConfigSpec.Builder builder) {
+        public ClientConfig(ModConfigSpec.Builder builder) {
             builder.comment("Client-side Configuration")
                     .push("client");
 

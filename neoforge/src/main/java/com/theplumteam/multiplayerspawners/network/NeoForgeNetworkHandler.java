@@ -5,99 +5,95 @@ import com.theplumteam.multiplayerspawners.client.ClientSpawnerData;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.NetworkRegistry;
-import net.minecraftforge.network.PacketDistributor;
-import net.minecraftforge.network.simple.SimpleChannel;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
 
-public class ForgeNetworkHandler extends NetworkHandler {
+@EventBusSubscriber(modid = Constants.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
+public class NeoForgeNetworkHandler extends NetworkHandler {
 
-    // Bump protocol version because packet structure changed
-    private static final String PROTOCOL_VERSION = "4";
-    private static SimpleChannel CHANNEL;
+    private static boolean initialized = false;
 
-    @Override
-    public void init() {
-        CHANNEL = NetworkRegistry.newSimpleChannel(
-                new ResourceLocation(Constants.MOD_ID, "main"),
-                () -> PROTOCOL_VERSION,
-                PROTOCOL_VERSION::equals,
-                PROTOCOL_VERSION::equals
+    @SubscribeEvent
+    public static void registerPayloads(RegisterPayloadHandlersEvent event) {
+        PayloadRegistrar registrar = event.registrar(Constants.MOD_ID).versioned("4");
+        registrar.playToClient(
+                SpawnerStatePayload.TYPE,
+                SpawnerStatePayload.STREAM_CODEC,
+                NeoForgeNetworkHandler::handleClientPayload
         );
-
-        CHANNEL.registerMessage(
-                0,
-                SpawnerStatePacket.class,
-                SpawnerStatePacket::write,
-                SpawnerStatePacket::new,
-                ForgeNetworkHandler::handleSpawnerStatePacket
-        );
-
-        Constants.LOG.info("Forge network handler initialized");
+        initialized = true;
+        Constants.LOG.info("NeoForge network handler registered payloads");
     }
 
-    private static void handleSpawnerStatePacket(SpawnerStatePacket packet, Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-                handleClientPacket(packet);
-            });
+    private static void handleClientPayload(SpawnerStatePayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            handleClientPacket(payload);
         });
-        ctx.get().setPacketHandled(true);
     }
 
     @OnlyIn(Dist.CLIENT)
-    private static void handleClientPacket(SpawnerStatePacket packet) {
+    private static void handleClientPacket(SpawnerStatePayload payload) {
         // Iterate through the batched updates
-        for (SpawnerStatePacket.SpawnerUpdate update : packet.getUpdates()) {
+        for (SpawnerStatePacket.SpawnerUpdate update : payload.updates()) {
             Constants.LOG.debug("CLIENT: Received update for pos {}", update.pos);
             ClientSpawnerData.updateSpawnerState(update.pos, update.disabledPlayers, update.treatedAsVanilla);
         }
     }
 
     @Override
+    public void init() {
+        // Initialization is done via the event bus subscriber
+        Constants.LOG.info("NeoForge network handler initialized");
+    }
+
+    @Override
     public void sendSpawnerStateToPlayer(ServerPlayer player, BlockPos pos, Set<String> disabledPlayers, boolean isFullSync, boolean treatedAsVanilla) {
-        if (CHANNEL != null) {
-            SpawnerStatePacket packet = new SpawnerStatePacket(pos, disabledPlayers, isFullSync, treatedAsVanilla);
-            CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
-            // CRASH FIX: Removed the "new Thread()" redundant packet logic.
-            // The batching system below ensures reliability without crashing the OS.
+        if (initialized) {
+            List<SpawnerStatePacket.SpawnerUpdate> updates = new ArrayList<>();
+            updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, new HashSet<>(disabledPlayers), treatedAsVanilla));
+            SpawnerStatePayload payload = new SpawnerStatePayload(updates, isFullSync);
+            PacketDistributor.sendToPlayer(player, payload);
         }
     }
 
     @Override
     public void sendSpawnerStateToTracking(Level level, BlockPos pos, Set<String> disabledPlayers, boolean treatedAsVanilla) {
-        if (CHANNEL != null && level instanceof ServerLevel serverLevel) {
+        if (initialized && level instanceof ServerLevel serverLevel) {
             LevelChunk chunk = serverLevel.getChunkAt(pos);
-            SpawnerStatePacket packet = new SpawnerStatePacket(pos, disabledPlayers, false, treatedAsVanilla);
-            CHANNEL.send(PacketDistributor.TRACKING_CHUNK.with(() -> chunk), packet);
+            List<SpawnerStatePacket.SpawnerUpdate> updates = new ArrayList<>();
+            updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, new HashSet<>(disabledPlayers), treatedAsVanilla));
+            SpawnerStatePayload payload = new SpawnerStatePayload(updates, false);
+            PacketDistributor.sendToPlayersTrackingChunk(serverLevel, chunk.getPos(), payload);
         }
     }
 
     @Override
     protected void sendBatchedStatesToPlayer(ServerPlayer player, List<SpawnerStatePacket.SpawnerUpdate> updates, boolean isFullSync) {
-        if (updates.isEmpty()) return;
+        if (updates.isEmpty() || !initialized) return;
 
         // Split into chunks of 100 to avoid packet size limits
         int batchSize = 100;
         for (int i = 0; i < updates.size(); i += batchSize) {
             int end = Math.min(updates.size(), i + batchSize);
             List<SpawnerStatePacket.SpawnerUpdate> batch = updates.subList(i, end);
-            SpawnerStatePacket packet = new SpawnerStatePacket(batch, isFullSync);
-            CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
+            SpawnerStatePayload payload = new SpawnerStatePayload(batch, isFullSync);
+            PacketDistributor.sendToPlayer(player, payload);
         }
     }
 

@@ -13,7 +13,7 @@ import net.minecraft.world.level.material.PushReaction;
 public class UnlitWallTorchBlock extends WallTorchBlock {
 
     public UnlitWallTorchBlock() {
-        super(BlockBehaviour.Properties.of().noCollission().instabreak().lightLevel((state) -> 0).pushReaction(PushReaction.DESTROY), ParticleTypes.FLAME);
+        super(ParticleTypes.FLAME, BlockBehaviour.Properties.of().noCollission().instabreak().lightLevel((state) -> 0).pushReaction(PushReaction.DESTROY));
     }
 
     @Override

@@ -3,7 +3,6 @@ package com.theplumteam.multiplayerspawners.mixin.client;
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.client.ClientSpawnerData;
 import net.minecraft.core.BlockPos;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.BaseSpawner;
 import net.minecraft.world.level.Level;
@@ -45,9 +44,10 @@ public class BaseSpawnerClientMixin {
      * Prevents the mob inside the spawner from being rendered when the spawner is disabled for the current player.
      * The renderer calls this method to get the entity to display. By returning null, we render nothing.
      * Player-placed spawners are NOT affected - they always show the mob.
+     * Note: In 1.21.1, the RandomSource parameter was removed from this method.
      */
     @Inject(method = "getOrCreateDisplayEntity", at = @At("HEAD"), cancellable = true)
-    private void multiplayerspawners$hideDisplayEntity(Level level, RandomSource random, BlockPos pos, CallbackInfoReturnable<Entity> cir) {
+    private void multiplayerspawners$hideDisplayEntity(Level level, BlockPos pos, CallbackInfoReturnable<Entity> cir) {
         // This method is only used on the client for rendering, but checking is good practice.
         if (level.isClientSide()) {
             // Player-placed spawners should always show the mob (vanilla behavior)
