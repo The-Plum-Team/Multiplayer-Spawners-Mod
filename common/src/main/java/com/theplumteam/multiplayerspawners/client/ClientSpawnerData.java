@@ -1,3 +1,4 @@
+// ClientSpawnerData.java
 package com.theplumteam.multiplayerspawners.client;
 
 import net.minecraft.core.particles.ParticleTypes;
@@ -98,6 +99,9 @@ public class ClientSpawnerData {
         var minecraft = Minecraft.getInstance();
         if (minecraft.level == null) return false;
 
+        // Check if chunk is loaded first
+        if (!minecraft.level.isLoaded(pos)) return false;
+
         var currentState = minecraft.level.getBlockState(pos);
         if (!(currentState.getBlock() instanceof SpawnerBlock)) return false;
         if (!currentState.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) return false;
@@ -127,6 +131,11 @@ public class ClientSpawnerData {
 
         var minecraft = Minecraft.getInstance();
         if (minecraft.level == null) {
+            return false;
+        }
+
+        // Verify chunk is loaded before attempting to get state
+        if (!minecraft.level.isLoaded(pos)) {
             return false;
         }
 
@@ -184,7 +193,7 @@ public class ClientSpawnerData {
                 Thread.sleep(50);
                 Minecraft.getInstance().execute(() -> {
                     var minecraft = Minecraft.getInstance();
-                    if (minecraft.level != null) {
+                    if (minecraft.level != null && minecraft.level.isLoaded(pos)) {
                         var currentState = minecraft.level.getBlockState(pos);
                         if (!currentState.equals(expectedState)) {
                             Constants.LOG.debug("CLIENT: 50ms follow-up needed for {}. Current: {}, Expected: {}", pos, currentState, expectedState);
@@ -203,7 +212,7 @@ public class ClientSpawnerData {
                 Thread.sleep(100);
                 Minecraft.getInstance().execute(() -> {
                     var minecraft = Minecraft.getInstance();
-                    if (minecraft.level != null) {
+                    if (minecraft.level != null && minecraft.level.isLoaded(pos)) {
                         var currentState = minecraft.level.getBlockState(pos);
                         if (!currentState.equals(expectedState)) {
                             Constants.LOG.debug("CLIENT: 100ms verification failed for {}. Correcting state.", pos);
@@ -310,7 +319,7 @@ public class ClientSpawnerData {
 
     private static void fallbackBlockReplacement(BlockPos pos, boolean isDisabled) {
         var minecraft = Minecraft.getInstance();
-        if (minecraft.level == null) return;
+        if (minecraft.level == null || !minecraft.level.isLoaded(pos)) return;
 
         boolean isVanillaTreated = vanillaTreatedSpawners.contains(pos);
         boolean newActivated = isVanillaTreated ? false : !isDisabled;
@@ -355,23 +364,33 @@ public class ClientSpawnerData {
     }
 
     /**
-     * Refreshes only spawners that need updates in a specific chunk
+     * Refreshes spawners in a specific chunk.
+     * FIXED: Iterates all tracked spawners instead of just pending updates to ensure persistence on reload.
      */
     private static void refreshSpawnersInChunk(int chunkX, int chunkZ) {
         var minecraft = Minecraft.getInstance();
         if (minecraft.level == null) return;
 
-        var spawnersToCheck = new HashSet<>(spawnersNeedingUpdate);
+        // FIXED: We must check ALL known spawners, not just those "needing update".
+        // When a chunk reloads, the block state resets to default, so we must re-apply our state.
+        Set<BlockPos> allTrackedSpawners = new HashSet<>(playerDisabledSpawners.keySet());
+        allTrackedSpawners.addAll(vanillaTreatedSpawners);
 
-        for (BlockPos pos : spawnersToCheck) {
+        for (BlockPos pos : allTrackedSpawners) {
             if ((pos.getX() >> 4) == chunkX && (pos.getZ() >> 4) == chunkZ) {
                 Boolean isDisabled = playerDisabledSpawners.get(pos);
-                if (isDisabled != null) {
-                    boolean success = updateBlockStateInWorld(pos, isDisabled, true);
-                    if (success) {
-                        spawnersNeedingUpdate.remove(pos);
-                        Constants.LOG.debug("CLIENT: Refreshed spawner at {} in loaded chunk", pos);
-                    }
+                // If isDisabled is null (vanilla treated only), default to enabled (false), but updateBlockStateInWorld handles vanilla logic.
+                boolean effectivelyDisabled = isDisabled != null && isDisabled;
+
+                // Force update (true) because the chunk just loaded and reset state
+                boolean success = updateBlockStateInWorld(pos, effectivelyDisabled, true);
+
+                if (success) {
+                    spawnersNeedingUpdate.remove(pos);
+                    Constants.LOG.debug("CLIENT: Refreshed spawner at {} in newly loaded chunk", pos);
+                } else {
+                    // If update failed (e.g. block entity not ready), ensure it stays marked for retry
+                    spawnersNeedingUpdate.add(pos);
                 }
             }
         }
@@ -511,6 +530,11 @@ public class ClientSpawnerData {
         for (Map.Entry<BlockPos, Boolean> entry : sortedSpawners) {
             BlockPos spawnerPos = entry.getKey();
             if (spawnerPos.distSqr(playerPos) > radius * radius) {
+                continue;
+            }
+
+            // FIXED: Verify chunk is loaded before assuming spawner is gone
+            if (!minecraft.level.isLoaded(spawnerPos)) {
                 continue;
             }
 

@@ -32,9 +32,10 @@ public class BaseSpawnerClientMixin {
         }
 
         // Check if this spawner is disabled for the current player
-        if (ClientSpawnerData.isSpawnerDisabledForCurrentPlayer(pos)) {
+        boolean isDisabled = ClientSpawnerData.isSpawnerDisabledForCurrentPlayer(pos);
+        if (isDisabled) {
             // Cancel the client tick to prevent particles and animations
-            Constants.LOG.debug("CLIENT: Cancelling spawner particles and animations at {} - spawner is disabled for current player", pos);
+            Constants.LOG.info("CLIENT MIXIN: Cancelling spawner particles at {} - disabled for current player", pos);
             ci.cancel();
         }
         // If not disabled, let the normal client tick proceed (particles will show)
@@ -55,8 +56,10 @@ public class BaseSpawnerClientMixin {
                 return; // Let vanilla behavior proceed
             }
 
-            if (ClientSpawnerData.isSpawnerDisabledForCurrentPlayer(pos)) {
+            boolean isDisabled = ClientSpawnerData.isSpawnerDisabledForCurrentPlayer(pos);
+            if (isDisabled) {
                 // Cancel the original method and return null, so the renderer has no entity to draw.
+                Constants.LOG.info("CLIENT MIXIN: Hiding display entity at {} - disabled for current player", pos);
                 cir.setReturnValue(null);
             }
         }

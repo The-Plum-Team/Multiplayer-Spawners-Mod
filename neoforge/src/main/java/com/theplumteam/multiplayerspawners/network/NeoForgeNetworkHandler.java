@@ -49,9 +49,12 @@ public class NeoForgeNetworkHandler extends NetworkHandler {
 
     @OnlyIn(Dist.CLIENT)
     private static void handleClientPacket(SpawnerStatePayload payload) {
+        Constants.LOG.info("CLIENT: Received spawner state packet with {} updates, isFullSync: {}",
+                payload.updates().size(), payload.isFullSync());
         // Iterate through the batched updates
         for (SpawnerStatePacket.SpawnerUpdate update : payload.updates()) {
-            Constants.LOG.debug("CLIENT: Received update for pos {}", update.pos);
+            Constants.LOG.info("CLIENT: Processing update for pos {}, disabledPlayers: {}, treatedAsVanilla: {}",
+                    update.pos, update.disabledPlayers, update.treatedAsVanilla);
             ClientSpawnerData.updateSpawnerState(update.pos, update.disabledPlayers, update.treatedAsVanilla);
         }
     }
