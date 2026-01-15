@@ -13,8 +13,8 @@ public class CommonClass {
         ModBlocksItems.init();
 
         // Constants.init() is no longer needed for registrations.
-        Constants.LOG.info("Hello from Common init on {}! we are currently in a {} environment!", Services.PLATFORM.getPlatformName(), Services.PLATFORM.getEnvironmentName());
-        Constants.LOG.info("The ID for diamonds is {}", BuiltInRegistries.ITEM.getKey(Items.DIAMOND));
+        Constants.debug("Hello from Common init on {}! we are currently in a {} environment!", Services.PLATFORM.getPlatformName(), Services.PLATFORM.getEnvironmentName());
+        Constants.debug("The ID for diamonds is {}", BuiltInRegistries.ITEM.getKey(Items.DIAMOND));
 
         // Initialize network handler
         NetworkHandler.getInstance().init();
@@ -23,7 +23,7 @@ public class CommonClass {
         Services.PLATFORM.initializeConfig();
 
         if (Services.PLATFORM.isModLoaded("examplemod")) {
-            Constants.LOG.info("Hello to examplemod");
+            Constants.debug("Hello to examplemod");
         }
     }
 }

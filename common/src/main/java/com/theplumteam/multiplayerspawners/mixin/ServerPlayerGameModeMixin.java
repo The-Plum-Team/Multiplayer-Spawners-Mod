@@ -59,14 +59,14 @@ public abstract class ServerPlayerGameModeMixin {
         ItemEntity itemEntity = new ItemEntity(level, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, spawnerItem);
         itemEntity.setDefaultPickUpDelay();
         level.addFreshEntity(itemEntity);
-        Constants.LOG.info("Dropped empty spawner for player {} at {} using dungeon pickaxe", player.getName().getString(), pos);
+        Constants.debug("Dropped empty spawner for player {} at {} using dungeon pickaxe", player.getName().getString(), pos);
     }
 
     @Unique
     private void multiplayerspawners$handleSpawnerInteraction(Level level, BlockPos pos, ServerPlayer player) {
         String playerName = player.getName().getString();
         SpawnerStateManager.disableSpawnerForPlayer(level, pos, playerName);
-        Constants.LOG.info("Spawner at {} has been permanently disabled by player {}", pos, playerName);
+        Constants.debug("Spawner at {} has been permanently disabled by player {}", pos, playerName);
 
         multiplayerspawners$triggerImmediateClientFeedback(level, pos, player);
 

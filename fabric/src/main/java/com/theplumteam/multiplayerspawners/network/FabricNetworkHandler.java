@@ -28,7 +28,7 @@ public class FabricNetworkHandler extends NetworkHandler {
     public void init() {
         // Register payload on the server side
         PayloadTypeRegistry.playS2C().register(SpawnerStatePayload.TYPE, SpawnerStatePayload.STREAM_CODEC);
-        Constants.LOG.info("Fabric network handler initialized");
+        Constants.debug("Fabric network handler initialized");
     }
 
     @Environment(EnvType.CLIENT)
@@ -38,7 +38,7 @@ public class FabricNetworkHandler extends NetworkHandler {
                 handleClientPacket(payload);
             });
         });
-        Constants.LOG.info("Fabric client network handler initialized with payload processing");
+        Constants.debug("Fabric client network handler initialized with payload processing");
     }
 
     @Environment(EnvType.CLIENT)

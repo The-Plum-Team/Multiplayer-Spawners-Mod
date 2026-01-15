@@ -16,7 +16,7 @@ public class ClientEventHandler {
      * Called when a chunk is loaded on the client
      */
     public static void onChunkLoad(LevelChunk chunk) {
-        Constants.LOG.debug("CLIENT: Chunk loaded at {}, {} - checking for pending spawner updates", chunk.getPos().x, chunk.getPos().z);
+        Constants.debug("CLIENT: Chunk loaded at {}, {} - checking for pending spawner updates", chunk.getPos().x, chunk.getPos().z);
         ClientSpawnerData.onChunkLoaded(chunk.getPos().x, chunk.getPos().z);
     }
 
@@ -42,7 +42,7 @@ public class ClientEventHandler {
         if (lastDimension == null) {
             lastDimension = currentDimension;
         } else if (!lastDimension.equals(currentDimension)) {
-            Constants.LOG.info("CLIENT: Detected dimension change from {} to {}", lastDimension, currentDimension);
+            Constants.debug("CLIENT: Detected dimension change from {} to {}", lastDimension, currentDimension);
             ClientSpawnerData.onDimensionChange(currentDimension);
             lastDimension = currentDimension;
         }
@@ -64,7 +64,7 @@ public class ClientEventHandler {
      * Called when the client connects to a server/world
      */
     public static void onClientConnect() {
-        Constants.LOG.info("CLIENT: Connected - resetting state tracking");
+        Constants.debug("CLIENT: Connected - resetting state tracking");
         lastDimension = null;
         tickCounter = 0;
         ClientSpawnerData.clearAll();
@@ -74,7 +74,7 @@ public class ClientEventHandler {
      * Called when the client disconnects from a server/world
      */
     public static void onClientDisconnect() {
-        Constants.LOG.info("CLIENT: Disconnected - clearing all data");
+        Constants.debug("CLIENT: Disconnected - clearing all data");
         lastDimension = null;
         tickCounter = 0;
         ClientSpawnerData.clearAll();
@@ -84,7 +84,7 @@ public class ClientEventHandler {
      * Called when the player respawns (including after death)
      */
     public static void onPlayerRespawn() {
-        Constants.LOG.info("CLIENT: Player respawned - scheduling targeted refresh");
+        Constants.debug("CLIENT: Player respawned - scheduling targeted refresh");
         // Use the new targeted refresh instead of refreshing everything
         var minecraft = Minecraft.getInstance();
         if (minecraft != null) {
@@ -103,7 +103,7 @@ public class ClientEventHandler {
      * Called when the level/world changes
      */
     public static void onLevelChange() {
-        Constants.LOG.info("CLIENT: Level changed - clearing and preparing for new world");
+        Constants.debug("CLIENT: Level changed - clearing and preparing for new world");
         lastDimension = null;
         ClientSpawnerData.clearAll();
     }

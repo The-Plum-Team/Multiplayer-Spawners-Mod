@@ -30,7 +30,7 @@ public class CommandHandler {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             NetworkHandler.getInstance().sendAllSpawnerStatesToPlayer(player);
         }
-        Constants.LOG.info("Refreshed spawner states for all {} players", server.getPlayerList().getPlayers().size());
+        Constants.debug("Refreshed spawner states for all {} players", server.getPlayerList().getPlayers().size());
     }
 
     /**
@@ -42,7 +42,7 @@ public class CommandHandler {
             // Check if the spec is loaded before attempting to save
             if (ModConfig.SERVER_SPEC.isLoaded()) {
                 ModConfig.SERVER_SPEC.save();
-                Constants.LOG.info("MultiplayerSpawners configuration successfully saved to disk.");
+                Constants.debug("MultiplayerSpawners configuration successfully saved to disk.");
             } else {
                 Constants.LOG.warn("Could not save configuration: Config spec not loaded.");
             }
@@ -101,7 +101,7 @@ public class CommandHandler {
                                     context.getSource().sendSuccess(() -> Component.literal("Spawner break attempts set to: " + newValue + " [" + type + "]")
                                             .withStyle(color), true);
 
-                                    Constants.LOG.info("Player {} changed requiredBreakAttempts from {} to {}",
+                                    Constants.debug("Player {} changed requiredBreakAttempts from {} to {}",
                                         context.getSource().getTextName(), oldValue, newValue);
 
                                     return 1;
@@ -175,7 +175,7 @@ public class CommandHandler {
                                                     world.destroyBlock(pos, false, player);
 
                                                     player.displayClientMessage(Component.literal("Spawner successfully broken and removed!").withStyle(ChatFormatting.GREEN), false);
-                                                    Constants.LOG.info("Player {} broke disabled spawner at {} via command", player.getName().getString(), pos);
+                                                    Constants.debug("Player {} broke disabled spawner at {} via command", player.getName().getString(), pos);
 
                                                     return 1;
                                                 })
@@ -203,12 +203,12 @@ public class CommandHandler {
                                             if (newDelay == 0) {
                                                 source.sendSuccess(() -> Component.literal("Torch extinguishing has been DISABLED. Torches will no longer be extinguished by spawners.")
                                                         .withStyle(ChatFormatting.GOLD), true);
-                                                Constants.LOG.info("Player {} disabled torch extinguishing (was {} seconds)",
+                                                Constants.debug("Player {} disabled torch extinguishing (was {} seconds)",
                                                         source.getTextName(), oldDelay);
                                             } else {
                                                 source.sendSuccess(() -> Component.literal("Torch extinguish delay set to " + newDelay + " seconds (was " + oldDelay + " seconds)")
                                                         .withStyle(ChatFormatting.GREEN), true);
-                                                Constants.LOG.info("Player {} changed torch extinguish delay from {} to {} seconds",
+                                                Constants.debug("Player {} changed torch extinguish delay from {} to {} seconds",
                                                         source.getTextName(), oldDelay, newDelay);
                                             }
 

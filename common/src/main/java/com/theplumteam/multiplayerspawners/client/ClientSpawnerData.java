@@ -48,7 +48,7 @@ public class ClientSpawnerData {
         boolean treatmentChanged = (wasVanillaTreated != treatedAsVanilla);
 
         if (stateChanged || treatmentChanged) {
-            Constants.LOG.info("CLIENT: Spawner at {} updated - disabled: {}, treatedAsVanilla: {} (was: disabled={}, vanilla={})",
+            Constants.debug("CLIENT: Spawner at {} updated - disabled: {}, treatedAsVanilla: {} (was: disabled={}, vanilla={})",
                     pos, isDisabledForPlayer, treatedAsVanilla, previousState, wasVanillaTreated);
 
             // Try to update immediately
@@ -123,7 +123,7 @@ public class ClientSpawnerData {
         cachedPlayerName = null;
         currentDimension = null;
         lastPeriodicRefresh = 0;
-        Constants.LOG.info("CLIENT: Cleared all client-side spawner data");
+        Constants.debug("CLIENT: Cleared all client-side spawner data");
     }
 
     public static void onDimensionChange(String newDimension) {

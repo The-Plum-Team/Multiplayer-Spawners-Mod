@@ -16,7 +16,7 @@ import net.neoforged.neoforge.common.NeoForge;
 public class MultiplayerSpawnersNeoForgeClient {
 
     public static void init(IEventBus modEventBus) {
-        Constants.LOG.info("Initializing MultiplayerSpawners NeoForge client");
+        Constants.debug("Initializing MultiplayerSpawners NeoForge client");
 
         // Register client setup event
         modEventBus.addListener(MultiplayerSpawnersNeoForgeClient::onClientSetup);
@@ -34,7 +34,7 @@ public class MultiplayerSpawnersNeoForgeClient {
             ItemBlockRenderTypes.setRenderLayer(ModBlocksItems.UNLIT_WALL_TORCH.get(), RenderType.cutout());
         });
 
-        Constants.LOG.info("MultiplayerSpawners NeoForge client setup complete");
+        Constants.debug("MultiplayerSpawners NeoForge client setup complete");
     }
 
     /**

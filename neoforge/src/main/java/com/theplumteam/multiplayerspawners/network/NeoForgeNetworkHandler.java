@@ -38,7 +38,7 @@ public class NeoForgeNetworkHandler extends NetworkHandler {
                 NeoForgeNetworkHandler::handleClientPayload
         );
         initialized = true;
-        Constants.LOG.info("NeoForge network handler registered payloads");
+        Constants.debug("NeoForge network handler registered payloads");
     }
 
     private static void handleClientPayload(SpawnerStatePayload payload, IPayloadContext context) {
@@ -49,11 +49,11 @@ public class NeoForgeNetworkHandler extends NetworkHandler {
 
     @OnlyIn(Dist.CLIENT)
     private static void handleClientPacket(SpawnerStatePayload payload) {
-        Constants.LOG.info("CLIENT: Received spawner state packet with {} updates, isFullSync: {}",
+        Constants.debug("CLIENT: Received spawner state packet with {} updates, isFullSync: {}",
                 payload.updates().size(), payload.isFullSync());
         // Iterate through the batched updates
         for (SpawnerStatePacket.SpawnerUpdate update : payload.updates()) {
-            Constants.LOG.info("CLIENT: Processing update for pos {}, disabledPlayers: {}, treatedAsVanilla: {}",
+            Constants.debug("CLIENT: Processing update for pos {}, disabledPlayers: {}, treatedAsVanilla: {}",
                     update.pos, update.disabledPlayers, update.treatedAsVanilla);
             ClientSpawnerData.updateSpawnerState(update.pos, update.disabledPlayers, update.treatedAsVanilla);
         }
@@ -62,7 +62,7 @@ public class NeoForgeNetworkHandler extends NetworkHandler {
     @Override
     public void init() {
         // Initialization is done via the event bus subscriber
-        Constants.LOG.info("NeoForge network handler initialized");
+        Constants.debug("NeoForge network handler initialized");
     }
 
     @Override
@@ -103,7 +103,7 @@ public class NeoForgeNetworkHandler extends NetworkHandler {
     @Override
     public void sendAllSpawnerStatesToPlayer(ServerPlayer player) {
         if (player.level() instanceof ServerLevel serverLevel) {
-            Constants.LOG.info("SERVER: Collecting spawner states for player batch sync...");
+            Constants.debug("SERVER: Collecting spawner states for player batch sync...");
 
             int viewDistance = serverLevel.getServer().getPlayerList().getViewDistance();
             BlockPos playerPos = player.blockPosition();
@@ -134,7 +134,7 @@ public class NeoForgeNetworkHandler extends NetworkHandler {
             }
 
             if (!updates.isEmpty()) {
-                Constants.LOG.info("SERVER: Sending {} spawner states in batches to player {}", updates.size(), player.getName().getString());
+                Constants.debug("SERVER: Sending {} spawner states in batches to player {}", updates.size(), player.getName().getString());
                 sendBatchedStatesToPlayer(player, updates, true);
             }
         }

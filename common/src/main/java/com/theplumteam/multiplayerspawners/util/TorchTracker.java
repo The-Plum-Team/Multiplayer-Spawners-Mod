@@ -209,7 +209,7 @@ public class TorchTracker {
         if (currentTime % 600 == 0) {
             int totalTorches = trackedTorches.values().stream().mapToInt(Map::size).sum();
             if (totalTorches > 0) {
-                Constants.LOG.debug("Tracking {} threatened torches across {} dimensions (delay: {}s)",
+                Constants.debug("Tracking {} threatened torches across {} dimensions (delay: {}s)",
                         totalTorches, trackedTorches.size(), extinguishDelayTicks / 20);
             }
         }
@@ -222,7 +222,7 @@ public class TorchTracker {
 
             ServerLevel level = server.getLevel(dimensionKey);
             if (level == null) {
-                Constants.LOG.warn("DEBUG: Level is null for dimension {}, skipping torch checks.", dimensionKey.location());
+                Constants.debug("Level is null for dimension {}, skipping torch checks.", dimensionKey.location());
                 continue;
             }
 
@@ -424,7 +424,7 @@ public class TorchTracker {
     public static void clear() {
         trackedTorches.clear();
         scheduledTasks.clear();
-        Constants.LOG.info("Cleared torch tracker and scheduled tasks.");
+        Constants.debug("Cleared torch tracker and scheduled tasks.");
     }
 
     /**

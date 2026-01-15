@@ -20,7 +20,7 @@ public class MultiplayerSpawnersNeoForge {
         // project.
 
         // Use NeoForge to bootstrap the Common mod.
-        Constants.LOG.info("Hello NeoForge world! MultiplayerSpawnersNeoForge has been loaded!");
+        Constants.debug("Hello NeoForge world! MultiplayerSpawnersNeoForge has been loaded!");
         CommonClass.init();
 
         if (Services.PLATFORM instanceof NeoForgePlatformHelper) {

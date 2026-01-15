@@ -23,13 +23,13 @@ public class MultiplayerSpawnersFabricClient implements ClientModInitializer {
 
         // Register disconnect event to clear client data
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            Constants.LOG.info("CLIENT: Fabric disconnect event");
+            Constants.debug("CLIENT: Fabric disconnect event");
             ClientEventHandler.onClientDisconnect();
         });
 
         // Register join event to clear old data
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
-            Constants.LOG.info("CLIENT: Fabric join event");
+            Constants.debug("CLIENT: Fabric join event");
             // DO NOT call onClientConnect() here. It causes a race condition.
             // onClientDisconnect() already handles clearing the data when leaving a world.
             // ClientEventHandler.onClientConnect(); // <- REMOVE THIS LINE
@@ -42,16 +42,16 @@ public class MultiplayerSpawnersFabricClient implements ClientModInitializer {
 
         // Register chunk loading events
         ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> {
-            Constants.LOG.debug("CLIENT: Fabric chunk load event for {}, {}", chunk.getPos().x, chunk.getPos().z);
+            Constants.debug("CLIENT: Fabric chunk load event for {}, {}", chunk.getPos().x, chunk.getPos().z);
             ClientEventHandler.onChunkLoad(chunk);
         });
 
         // Register chunk unloading events
         ClientChunkEvents.CHUNK_UNLOAD.register((world, chunk) -> {
-            Constants.LOG.debug("CLIENT: Fabric chunk unload event for {}, {}", chunk.getPos().x, chunk.getPos().z);
+            Constants.debug("CLIENT: Fabric chunk unload event for {}, {}", chunk.getPos().x, chunk.getPos().z);
             ClientEventHandler.onChunkUnload(chunk);
         });
 
-        Constants.LOG.info("MultiplayerSpawners Fabric enhanced client initialized");
+        Constants.debug("MultiplayerSpawners Fabric enhanced client initialized");
     }
 }

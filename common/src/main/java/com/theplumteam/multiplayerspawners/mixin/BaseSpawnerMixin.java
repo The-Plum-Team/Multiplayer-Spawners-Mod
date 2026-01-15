@@ -52,7 +52,7 @@ public abstract class BaseSpawnerMixin {
 
         // If there are no active players nearby, cancel the spawner tick
         if (!hasActivePlayer) {
-            Constants.LOG.debug("Spawner at {} tick cancelled because all nearby players have it disabled.", pos);
+            Constants.debug("Spawner at {} tick cancelled because all nearby players have it disabled.", pos);
             ci.cancel();
         }
         // If hasActivePlayer is true, we do NOT cancel, letting vanilla logic proceed

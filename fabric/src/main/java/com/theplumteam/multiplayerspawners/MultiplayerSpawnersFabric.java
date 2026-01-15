@@ -21,7 +21,7 @@ public void onInitialize() {
     // project.
 
     // Use Fabric to bootstrap the Common mod.
-    Constants.LOG.info("Hello Fabric world!");
+    Constants.debug("Hello Fabric world!");
     CommonClass.init();
 
     FabricServerEvents.register();
