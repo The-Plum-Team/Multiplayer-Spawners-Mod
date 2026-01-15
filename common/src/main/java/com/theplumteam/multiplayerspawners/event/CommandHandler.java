@@ -33,6 +33,24 @@ public class CommandHandler {
         Constants.LOG.info("Refreshed spawner states for all {} players", server.getPlayerList().getPlayers().size());
     }
 
+    /**
+     * Helper to save config changes to disk immediately.
+     * This ensures settings persist after server restart/world reload.
+     */
+    private static void saveServerConfig() {
+        try {
+            // Check if the spec is loaded before attempting to save
+            if (ModConfig.SERVER_SPEC.isLoaded()) {
+                ModConfig.SERVER_SPEC.save();
+                Constants.LOG.info("MultiplayerSpawners configuration successfully saved to disk.");
+            } else {
+                Constants.LOG.warn("Could not save configuration: Config spec not loaded.");
+            }
+        } catch (Exception e) {
+            Constants.LOG.error("Failed to save MultiplayerSpawners configuration", e);
+        }
+    }
+
     public static void register(com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("multiplayerspawners")
                 .then(Commands.literal("toggle_placed_vanilla")
@@ -41,6 +59,9 @@ public class CommandHandler {
                             boolean current = ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
                             boolean newValue = !current;
                             ModConfig.SERVER.treatPlacedSpawnersAsVanilla.set(newValue);
+
+                            // EXPLICITLY SAVE TO DISK
+                            saveServerConfig();
 
                             String status = newValue ? "TREATED AS VANILLA" : "TREATED AS MULTIPLAYER";
                             ChatFormatting color = newValue ? ChatFormatting.GREEN : ChatFormatting.GOLD;
@@ -71,6 +92,9 @@ public class CommandHandler {
 
                                     ModConfig.SERVER.requiredBreakAttempts.set(newValue);
 
+                                    // EXPLICITLY SAVE TO DISK
+                                    saveServerConfig();
+
                                     String type = (newValue == 1) ? "ONE-HIT (Break message on first hit)" : "TWO-STEP (Break message on second hit)";
                                     ChatFormatting color = (newValue == 1) ? ChatFormatting.GOLD : ChatFormatting.GREEN;
 
@@ -90,6 +114,9 @@ public class CommandHandler {
                             boolean current = ModConfig.SERVER.allowSpawnerBreakMessage.get();
                             boolean newValue = !current;
                             ModConfig.SERVER.allowSpawnerBreakMessage.set(newValue);
+
+                            // EXPLICITLY SAVE TO DISK
+                            saveServerConfig();
 
                             String status = newValue ? "ENABLED" : "DISABLED";
                             ChatFormatting color = newValue ? ChatFormatting.GREEN : ChatFormatting.RED;
@@ -169,6 +196,9 @@ public class CommandHandler {
 
                                             // Update the config value
                                             ModConfig.SERVER.torchExtinguishDelaySeconds.set(newDelay);
+
+                                            // EXPLICITLY SAVE TO DISK
+                                            saveServerConfig();
 
                                             if (newDelay == 0) {
                                                 source.sendSuccess(() -> Component.literal("Torch extinguishing has been DISABLED. Torches will no longer be extinguished by spawners.")
