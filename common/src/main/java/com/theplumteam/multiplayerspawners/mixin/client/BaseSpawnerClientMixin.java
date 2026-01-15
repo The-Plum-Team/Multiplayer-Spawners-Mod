@@ -7,13 +7,23 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.BaseSpawner;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.util.HashSet;
+import java.util.Set;
+
 @Mixin(BaseSpawner.class)
 public class BaseSpawnerClientMixin {
+
+    /**
+     * Tracks spawners that were previously disabled, to only log on state change.
+     */
+    @Unique
+    private static final Set<BlockPos> multiplayerspawners$previouslyDisabled = new HashSet<>();
 
     /**
      * Cancels client-side particle effects and animations when the spawner is disabled for the current player.
@@ -33,10 +43,20 @@ public class BaseSpawnerClientMixin {
 
         // Check if this spawner is disabled for the current player
         boolean isDisabled = ClientSpawnerData.isSpawnerDisabledForCurrentPlayer(pos);
+        boolean wasDisabled = multiplayerspawners$previouslyDisabled.contains(pos);
+
         if (isDisabled) {
+            // Log only on state change to prevent spam
+            if (!wasDisabled) {
+                multiplayerspawners$previouslyDisabled.add(pos);
+                Constants.debug("CLIENT MIXIN: Spawner at {} is now disabled for current player - hiding particles", pos);
+            }
             // Cancel the client tick to prevent particles and animations
-            Constants.LOG.info("CLIENT MIXIN: Cancelling spawner particles at {} - disabled for current player", pos);
             ci.cancel();
+        } else if (wasDisabled) {
+            // Spawner was re-enabled, log the state change
+            multiplayerspawners$previouslyDisabled.remove(pos);
+            Constants.debug("CLIENT MIXIN: Spawner at {} is now enabled for current player - showing particles", pos);
         }
         // If not disabled, let the normal client tick proceed (particles will show)
     }
@@ -59,7 +79,7 @@ public class BaseSpawnerClientMixin {
             boolean isDisabled = ClientSpawnerData.isSpawnerDisabledForCurrentPlayer(pos);
             if (isDisabled) {
                 // Cancel the original method and return null, so the renderer has no entity to draw.
-                Constants.LOG.info("CLIENT MIXIN: Hiding display entity at {} - disabled for current player", pos);
+                // Note: State change logging is handled in clientTick to avoid duplicate messages
                 cir.setReturnValue(null);
             }
         }
