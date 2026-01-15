@@ -255,7 +255,7 @@ public class TorchTracker {
                         BlockPos nearestSpawner = findNearbySpawner(level, pos);
                         if (nearestSpawner != null) {
                             double distanceToSpawner = Math.sqrt(pos.distSqr(nearestSpawner));
-                            Constants.LOG.info("DEBUG: Spawner at {} will target torch at {} after additional delay (distance: {} <= {})",
+                            Constants.debug("Spawner at {} will target torch at {} after additional delay (distance: {} <= {})",
                                     nearestSpawner, pos, String.format("%.1f", distanceToSpawner), SPAWNER_DISTANCE);
 
                             // Add additional delay before shooting
@@ -267,7 +267,7 @@ public class TorchTracker {
                                 }
                             });
                         } else {
-                            Constants.LOG.info("DEBUG: No spawner found nearby. Torch at {} is now safe and remains lit.", pos);
+                            Constants.debug("No spawner found nearby. Torch at {} is now safe and remains lit.", pos);
                         }
                     } else {
                         Constants.logTorchMechanics("Block at {} is no longer a torch. Current block: {}. Ignoring.", pos, currentState.getBlock());
@@ -408,7 +408,7 @@ public class TorchTracker {
             level.setBlock(pos, newState, 3);
             double distance = Math.sqrt(pos.distSqr(spawnerPos));
             int delaySeconds = ModConfig.SERVER.torchExtinguishDelaySeconds.get();
-            Constants.LOG.info("Spawner at {} extinguished torch at {} with lightning-fast dark magic after {}s delay! (distance: {})",
+            Constants.debug("Spawner at {} extinguished torch at {} after {}s delay (distance: {})",
                     spawnerPos, pos, delaySeconds, String.format("%.1f", distance));
         }
     }

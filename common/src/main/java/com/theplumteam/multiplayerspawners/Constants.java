@@ -20,6 +20,9 @@ public class Constants {
 	}
 
 	public static void logTorchMechanics(String message, Object... args) {
-		LOG.info("[TORCH] " + message, args);
+		// Only log torch mechanics when debug logging is enabled
+		if (ModConfig.CLIENT_SPEC.isLoaded() && ModConfig.CLIENT.enableDebugLogging.get()) {
+			LOG.info("[TORCH] " + message, args);
+		}
 	}
 }
