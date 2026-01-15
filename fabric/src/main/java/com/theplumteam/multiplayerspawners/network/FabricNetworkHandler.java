@@ -1,3 +1,4 @@
+// FabricNetworkHandler.java
 package com.theplumteam.multiplayerspawners.network;
 
 import com.theplumteam.multiplayerspawners.Constants;
@@ -26,7 +27,6 @@ public class FabricNetworkHandler extends NetworkHandler {
 
     @Override
     public void init() {
-        // Register payload on the server side
         PayloadTypeRegistry.playS2C().register(SpawnerStatePayload.TYPE, SpawnerStatePayload.STREAM_CODEC);
         Constants.debug("Fabric network handler initialized");
     }
@@ -90,31 +90,35 @@ public class FabricNetworkHandler extends NetworkHandler {
             int chunkX = playerPos.getX() >> 4;
             int chunkZ = playerPos.getZ() >> 4;
 
-            List<SpawnerStatePacket.SpawnerUpdate> updates = new ArrayList<>();
-
             for (int dx = -viewDistance; dx <= viewDistance; dx++) {
                 for (int dz = -viewDistance; dz <= viewDistance; dz++) {
-                    LevelChunk chunk = serverLevel.getChunk(chunkX + dx, chunkZ + dz);
+                    LevelChunk chunk = serverLevel.getChunkSource().getChunk(chunkX + dx, chunkZ + dz, false);
                     if (chunk != null) {
-                        chunk.getBlockEntities().forEach((pos, blockEntity) -> {
-                            if (blockEntity instanceof SpawnerBlockEntity spawnerBlockEntity) {
-                                SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
-                                Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
-                                boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
-                                        && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
-
-                                if (!disabledPlayers.isEmpty() || treatedAsVanilla) {
-                                    updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, disabledPlayers, treatedAsVanilla));
-                                }
-                            }
-                        });
+                        sendChunkSpawnerStatesToPlayer(player, chunk);
                     }
                 }
             }
+        }
+    }
 
-            if (!updates.isEmpty()) {
-                sendBatchedStatesToPlayer(player, updates, true);
+    @Override
+    public void sendChunkSpawnerStatesToPlayer(ServerPlayer player, LevelChunk chunk) {
+        List<SpawnerStatePacket.SpawnerUpdate> updates = new ArrayList<>();
+        chunk.getBlockEntities().forEach((pos, blockEntity) -> {
+            if (blockEntity instanceof SpawnerBlockEntity spawnerBlockEntity) {
+                SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
+                Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+                boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
+                        && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
+
+                if (!disabledPlayers.isEmpty() || treatedAsVanilla) {
+                    updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, disabledPlayers, treatedAsVanilla));
+                }
             }
+        });
+
+        if (!updates.isEmpty()) {
+            sendBatchedStatesToPlayer(player, updates, true);
         }
     }
 }

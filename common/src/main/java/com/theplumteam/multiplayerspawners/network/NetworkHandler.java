@@ -4,6 +4,7 @@ import com.theplumteam.multiplayerspawners.platform.Services;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.chunk.LevelChunk;
 
 import java.util.List;
 import java.util.Set;
@@ -58,4 +59,10 @@ public abstract class NetworkHandler {
      * @param isFullSync Whether this is a full sync
      */
     protected abstract void sendBatchedStatesToPlayer(ServerPlayer player, List<SpawnerStatePacket.SpawnerUpdate> updates, boolean isFullSync);
+
+    /**
+     * Sends spawner states for a specific chunk to a specific player.
+     * Used by the chunk load/watch listeners to sync data as chunks stream in.
+     */
+    public abstract void sendChunkSpawnerStatesToPlayer(ServerPlayer player, LevelChunk chunk);
 }
