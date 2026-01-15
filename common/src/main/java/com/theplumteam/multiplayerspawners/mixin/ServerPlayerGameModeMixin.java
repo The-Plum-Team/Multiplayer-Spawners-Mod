@@ -165,17 +165,19 @@ public abstract class ServerPlayerGameModeMixin {
     @Unique
     private void multiplayerspawners$forceVisualStateRefresh(Level level, BlockPos pos, ServerPlayer player) {
         if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
+            // 1. FIRST: Send vanilla block update to fix the "AIR" client-side prediction
+            // When a survival player finishes mining, the client predicts success and sets the block to AIR.
+            // This packet "resurrects" the block on the client before we apply our custom state.
+            player.connection.send(new ClientboundBlockUpdatePacket(pos, level.getBlockState(pos)));
+
+            // 2. THEN: Send the mod data with the spawner's disabled state
             SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
             Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
             boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
                     && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
 
-            // Send immediate visual state refresh packet with high priority
             Constants.debug("Sending forced visual refresh for cancelled break at {} to player {}", pos, player.getName().getString());
             NetworkHandler.getInstance().sendSpawnerStateToPlayer(player, pos, disabledPlayers, true, treatedAsVanilla);
-
-            // Explicitly reset the client's breaking progress
-            player.connection.send(new ClientboundBlockUpdatePacket(pos, level.getBlockState(pos)));
         }
     }
 

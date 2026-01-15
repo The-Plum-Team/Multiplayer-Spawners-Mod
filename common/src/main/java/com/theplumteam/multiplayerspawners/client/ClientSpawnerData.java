@@ -1,8 +1,6 @@
 // ClientSpawnerData.java
 package com.theplumteam.multiplayerspawners.client;
 
-import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.world.level.block.Blocks;
 import java.util.ArrayList;
 import java.util.Comparator;
 import com.theplumteam.multiplayerspawners.Constants;
@@ -19,7 +17,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Optimized client-side storage for spawner states with instant visual updates
+ * Client-side storage for spawner states with visual updates via "mark dirty" approach.
+ * This class no longer uses Thread.sleep - instead it relies on the render engine and
+ * the LevelChunkMixin "Enforcer" to handle visual updates correctly.
  */
 public class ClientSpawnerData {
 
@@ -28,9 +28,6 @@ public class ClientSpawnerData {
 
     // Track spawners that need visual updates (to avoid unnecessary refreshes)
     private static final Set<BlockPos> spawnersNeedingUpdate = new HashSet<>();
-
-    // Temporarily lock spawners from client-side updates to prevent race conditions
-    private static final Set<BlockPos> lockedSpawners = new HashSet<>();
 
     // Track spawners that should be treated as vanilla (player-placed with config enabled)
     private static final Set<BlockPos> vanillaTreatedSpawners = new HashSet<>();
@@ -78,11 +75,10 @@ public class ClientSpawnerData {
 
             boolean success = updateBlockStateInWorld(pos, isDisabledForPlayer, false);
 
-            if (!success) {
-                scheduleRetryUpdate(pos, isDisabledForPlayer);
-            } else {
+            if (success) {
                 spawnersNeedingUpdate.remove(pos);
             }
+            // If not successful, it stays in spawnersNeedingUpdate for the monitor to correct later
         } else {
             if (isBlockStateOutOfSync(pos, isDisabledForPlayer)) {
                 Constants.LOG.debug("CLIENT: Spawner at {} needs visual sync", pos);
@@ -120,15 +116,11 @@ public class ClientSpawnerData {
     }
 
     /**
-     * Directly updates the block state in the world to reflect the spawner's status with instant visual feedback
+     * Updates the block state in the world to reflect the spawner's status.
+     * Uses the "mark dirty" approach - set the state and let the render engine handle updates.
      * @return true if the update was successful, false otherwise
      */
     private static boolean updateBlockStateInWorld(BlockPos pos, boolean isDisabledForPlayer, boolean forceUpdate) {
-        if (lockedSpawners.contains(pos) && !forceUpdate) {
-            Constants.LOG.debug("CLIENT: Spawner at {} is locked, skipping update", pos);
-            return false;
-        }
-
         var minecraft = Minecraft.getInstance();
         if (minecraft.level == null) {
             return false;
@@ -164,15 +156,14 @@ public class ClientSpawnerData {
             try {
                 var newState = currentState.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, newActivated);
 
-                // IMMEDIATE UPDATE: Use flag 19 for instant visual update
-                // Flag 19 = 1 (BLOCK_UPDATE) + 2 (NOTIFY_LISTENERS) + 16 (FORCE_STATE)
-                minecraft.level.setBlock(pos, newState, 19);
+                // Set the block state and mark as dirty for rendering
+                // Flag 3 = BLOCK_UPDATE (1) + SEND_TO_CLIENT (2) - standard update flags
+                minecraft.level.setBlock(pos, newState, 3);
 
-                forceInstantVisualUpdate(pos, currentState, newState);
-                lockSpawner(pos);
-                scheduleFollowUpUpdate(pos, newState);
+                // Mark the block as needing a render update
+                markBlockForRerender(pos, currentState, newState);
 
-                Constants.LOG.info("CLIENT: INSTANTLY updated spawner visual state at {} to MULTIPLAYER_ACTIVATED={} (treatedAsVanilla={})",
+                Constants.LOG.info("CLIENT: Updated spawner visual state at {} to MULTIPLAYER_ACTIVATED={} (treatedAsVanilla={})",
                         pos, newActivated, isVanillaTreated);
                 return true;
 
@@ -186,121 +177,40 @@ public class ClientSpawnerData {
         }
     }
 
-    private static void scheduleFollowUpUpdate(BlockPos pos, BlockState expectedState) {
-        // Quick Follow-up (50ms)
-        new Thread(() -> {
-            try {
-                Thread.sleep(50);
-                Minecraft.getInstance().execute(() -> {
-                    var minecraft = Minecraft.getInstance();
-                    if (minecraft.level != null && minecraft.level.isLoaded(pos)) {
-                        var currentState = minecraft.level.getBlockState(pos);
-                        if (!currentState.equals(expectedState)) {
-                            Constants.LOG.debug("CLIENT: 50ms follow-up needed for {}. Current: {}, Expected: {}", pos, currentState, expectedState);
-                            minecraft.level.setBlock(pos, expectedState, 27);
-                        }
-                    }
-                });
-            } catch (InterruptedException e) {
-                Constants.LOG.warn("CLIENT: 50ms follow-up interrupted for {}", pos);
-            }
-        }).start();
-
-        // Verification (100ms)
-        new Thread(() -> {
-            try {
-                Thread.sleep(100);
-                Minecraft.getInstance().execute(() -> {
-                    var minecraft = Minecraft.getInstance();
-                    if (minecraft.level != null && minecraft.level.isLoaded(pos)) {
-                        var currentState = minecraft.level.getBlockState(pos);
-                        if (!currentState.equals(expectedState)) {
-                            Constants.LOG.debug("CLIENT: 100ms verification failed for {}. Correcting state.", pos);
-                            minecraft.level.setBlock(pos, expectedState, 147);
-                        }
-                    }
-                });
-            } catch (InterruptedException e) {
-                Constants.LOG.warn("CLIENT: 100ms verification interrupted for {}", pos);
-            }
-        }).start();
-    }
-
-    private static void lockSpawner(BlockPos pos) {
-        lockedSpawners.add(pos);
-        new Thread(() -> {
-            try {
-                Thread.sleep(500); // Lock for 500ms
-            } catch (InterruptedException e) {
-                // Ignore
-            } finally {
-                lockedSpawners.remove(pos);
-                Constants.LOG.debug("CLIENT: Unlocked spawner at {}", pos);
-            }
-        }).start();
-    }
-
     /**
-     * Forces instant visual updates using multiple approaches for maximum immediate feedback
+     * Marks a block position for re-rendering using the proper Minecraft approach.
+     * This is the "Minecraft way" - update data, mark dirty, let engine redraw.
      */
-    private static void forceInstantVisualUpdate(BlockPos pos, BlockState oldState, BlockState newState) {
+    private static void markBlockForRerender(BlockPos pos, BlockState oldState, BlockState newState) {
         var minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.levelRenderer == null) return;
 
         try {
+            // Notify the level about the block update
             minecraft.level.sendBlockUpdated(pos, oldState, newState, 3);
-            minecraft.level.setBlocksDirty(pos, oldState, newState);
-            minecraft.levelRenderer.setBlocksDirty(pos.getX(), pos.getY(), pos.getZ(), pos.getX(), pos.getY(), pos.getZ());
 
+            // Mark the blocks as dirty for re-rendering
+            minecraft.level.setBlocksDirty(pos, oldState, newState);
+
+            // Mark the section dirty in the level renderer
+            minecraft.levelRenderer.setBlocksDirty(
+                    pos.getX(), pos.getY(), pos.getZ(),
+                    pos.getX(), pos.getY(), pos.getZ()
+            );
+
+            // Mark the chunk section as needing update
             var chunk = minecraft.level.getChunk(pos);
             if (chunk instanceof LevelChunk levelChunk) {
-                levelChunk.setUnsaved(true);
                 int sectionX = pos.getX() >> 4;
                 int sectionY = pos.getY() >> 4;
                 int sectionZ = pos.getZ() >> 4;
                 minecraft.level.setSectionDirtyWithNeighbors(sectionX, sectionY, sectionZ);
             }
-
-            minecraft.level.levelEvent(null, 2001, pos, 0);
-
-            if (!newState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
-                for (int i = 0; i < 10; i++) {
-                    minecraft.level.addParticle(ParticleTypes.SMOKE, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 0, 0, 0);
-                }
-            }
-
-            Constants.LOG.info("CLIENT: Applied instant visual updates for spawner at {}", pos);
-
         } catch (Exception e) {
-            Constants.LOG.warn("CLIENT: Exception during instant visual update for {}: {}", pos, e.getMessage());
+            Constants.LOG.warn("CLIENT: Exception during mark dirty for {}: {}", pos, e.getMessage());
         }
     }
 
-    /**
-     * Schedules a single retry update for a spawner position
-     */
-    private static void scheduleRetryUpdate(BlockPos pos, boolean isDisabledForPlayer) {
-        var minecraft = Minecraft.getInstance();
-        if (minecraft == null) return;
-
-        Constants.LOG.debug("CLIENT: Scheduling retry update for spawner at {}", pos);
-
-        new Thread(() -> {
-            try {
-                Thread.sleep(100);
-                minecraft.execute(() -> {
-                    if (playerDisabledSpawners.containsKey(pos)) {
-                        boolean success = updateBlockStateInWorld(pos, isDisabledForPlayer, true);
-                        if (success) {
-                            spawnersNeedingUpdate.remove(pos);
-                        }
-                    }
-                });
-            } catch (InterruptedException e) {
-                Constants.LOG.debug("CLIENT: Retry update interrupted for {}", pos);
-            }
-        }).start();
-    }
 
     /**
      * Checks if a spawner is disabled for the current player
@@ -317,19 +227,6 @@ public class ClientSpawnerData {
         return vanillaTreatedSpawners.contains(pos);
     }
 
-    private static void fallbackBlockReplacement(BlockPos pos, boolean isDisabled) {
-        var minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || !minecraft.level.isLoaded(pos)) return;
-
-        boolean isVanillaTreated = vanillaTreatedSpawners.contains(pos);
-        boolean newActivated = isVanillaTreated ? false : !isDisabled;
-
-        var airState = Blocks.AIR.defaultBlockState();
-        var spawnerState = Blocks.SPAWNER.defaultBlockState().setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, newActivated);
-
-        minecraft.level.setBlock(pos, airState, 20);
-        minecraft.level.setBlock(pos, spawnerState, 27);
-    }
 
     /**
      * Clears all cached spawner data (called on world change/disconnect)
@@ -447,19 +344,14 @@ public class ClientSpawnerData {
     }
 
     /**
-     * Schedules a targeted refresh of spawners that need updates
+     * Schedules a targeted refresh of spawners that need updates.
+     * Uses the main thread execute to refresh on the next tick instead of Thread.sleep.
      */
     private static void scheduleTargetedRefresh() {
         var minecraft = Minecraft.getInstance();
         if (minecraft != null) {
-            minecraft.execute(() -> {
-                try {
-                    Thread.sleep(200);
-                    refreshPendingSpawnerStates();
-                } catch (InterruptedException e) {
-                    Constants.LOG.warn("CLIENT: Targeted refresh interrupted", e);
-                }
-            });
+            // Schedule refresh on the main thread for the next tick
+            minecraft.execute(ClientSpawnerData::refreshPendingSpawnerStates);
         }
     }
 
@@ -482,14 +374,14 @@ public class ClientSpawnerData {
     }
 
     /**
-     * Forces an immediate visual update with maximum aggressiveness and instant response
-     * Used when a spawner is first disabled to ensure instant feedback
+     * Forces an immediate visual update for a spawner.
+     * Used when a spawner is first disabled to ensure immediate feedback.
      */
     public static void forceImmediateVisualUpdate(BlockPos pos) {
         var minecraft = Minecraft.getInstance();
         if (minecraft.level == null) return;
 
-        Constants.LOG.info("CLIENT: Forcing INSTANT visual update for spawner at {}", pos);
+        Constants.LOG.info("CLIENT: Forcing immediate visual update for spawner at {}", pos);
 
         Boolean isDisabled = playerDisabledSpawners.get(pos);
         if (isDisabled == null) {
@@ -499,12 +391,11 @@ public class ClientSpawnerData {
 
         boolean success = updateBlockStateInWorld(pos, isDisabled, true);
         if (success) {
-            Constants.LOG.info("CLIENT: INSTANT visual update succeeded for spawner at {}", pos);
+            Constants.LOG.info("CLIENT: Immediate visual update succeeded for spawner at {}", pos);
             spawnersNeedingUpdate.remove(pos);
         } else {
-            Constants.LOG.warn("CLIENT: INSTANT visual update failed - will retry for spawner at {}", pos);
+            Constants.LOG.warn("CLIENT: Immediate visual update failed - monitor will retry for spawner at {}", pos);
             spawnersNeedingUpdate.add(pos);
-            scheduleRetryUpdate(pos, isDisabled);
         }
     }
 
@@ -573,8 +464,8 @@ public class ClientSpawnerData {
                 if (isDisabled != null) {
                     boolean success = updateBlockStateInWorld(pos, isDisabled, true);
                     if (!success) {
-                        Constants.debug("MONITOR: Correction failed for {}. Attempting fallback.", pos);
-                        fallbackBlockReplacement(pos, isDisabled);
+                        Constants.debug("MONITOR: Correction failed for {}. Will retry on next tick.", pos);
+                        spawnersNeedingUpdate.add(pos);
                     }
                 }
             }
