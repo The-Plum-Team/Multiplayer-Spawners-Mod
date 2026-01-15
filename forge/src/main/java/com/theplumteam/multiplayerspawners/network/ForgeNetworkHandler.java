@@ -47,7 +47,7 @@ public class ForgeNetworkHandler extends NetworkHandler {
                 ForgeNetworkHandler::handleSpawnerStatePacket
         );
 
-        Constants.LOG.info("Forge network handler initialized");
+        Constants.debug("Forge network handler initialized");
     }
 
     private static void handleSpawnerStatePacket(SpawnerStatePacket packet, Supplier<NetworkEvent.Context> ctx) {
@@ -63,7 +63,7 @@ public class ForgeNetworkHandler extends NetworkHandler {
     private static void handleClientPacket(SpawnerStatePacket packet) {
         // Iterate through the batched updates
         for (SpawnerStatePacket.SpawnerUpdate update : packet.getUpdates()) {
-            Constants.LOG.debug("CLIENT: Received update for pos {}", update.pos);
+            Constants.debug("CLIENT: Received update for pos {}", update.pos);
             ClientSpawnerData.updateSpawnerState(update.pos, update.disabledPlayers, update.treatedAsVanilla);
         }
     }
@@ -104,7 +104,7 @@ public class ForgeNetworkHandler extends NetworkHandler {
     @Override
     public void sendAllSpawnerStatesToPlayer(ServerPlayer player) {
         if (player.level() instanceof ServerLevel serverLevel) {
-            Constants.LOG.info("SERVER: Collecting spawner states for player batch sync...");
+            Constants.debug("SERVER: Collecting spawner states for player batch sync...");
 
             int viewDistance = serverLevel.getServer().getPlayerList().getViewDistance();
             BlockPos playerPos = player.blockPosition();
@@ -135,7 +135,7 @@ public class ForgeNetworkHandler extends NetworkHandler {
             }
 
             if (!updates.isEmpty()) {
-                Constants.LOG.info("SERVER: Sending {} spawner states in batches to player {}", updates.size(), player.getName().getString());
+                Constants.debug("SERVER: Sending {} spawner states in batches to player {}", updates.size(), player.getName().getString());
                 sendBatchedStatesToPlayer(player, updates, true);
             }
         }

@@ -13,7 +13,7 @@ public class PlayerEventHandler {
      * Called when a player joins the world
      */
     public static void onPlayerJoin(ServerPlayer player) {
-        Constants.LOG.debug("Player {} joined, syncing spawner states", player.getName().getString());
+        Constants.debug("Player {} joined, syncing spawner states", player.getName().getString());
         // Send all spawner states to the joining player
         NetworkHandler.getInstance().sendAllSpawnerStatesToPlayer(player);
     }
@@ -22,7 +22,7 @@ public class PlayerEventHandler {
      * Called when a player changes dimension
      */
     public static void onPlayerChangeDimension(ServerPlayer player) {
-        Constants.LOG.debug("Player {} changed dimension, syncing spawner states", player.getName().getString());
+        Constants.debug("Player {} changed dimension, syncing spawner states", player.getName().getString());
         // Send all spawner states in the new dimension
         NetworkHandler.getInstance().sendAllSpawnerStatesToPlayer(player);
     }
@@ -31,7 +31,7 @@ public class PlayerEventHandler {
      * Called when a player respawns
      */
     public static void onPlayerRespawn(ServerPlayer player) {
-        Constants.LOG.debug("Player {} respawned, syncing spawner states", player.getName().getString());
+        Constants.debug("Player {} respawned, syncing spawner states", player.getName().getString());
         // Send all spawner states after respawn
         NetworkHandler.getInstance().sendAllSpawnerStatesToPlayer(player);
     }

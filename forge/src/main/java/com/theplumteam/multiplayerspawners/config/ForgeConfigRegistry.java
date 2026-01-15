@@ -13,6 +13,6 @@ public class ForgeConfigRegistry {
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, com.theplumteam.multiplayerspawners.config.ModConfig.SERVER_SPEC);
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, com.theplumteam.multiplayerspawners.config.ModConfig.CLIENT_SPEC);
         com.theplumteam.multiplayerspawners.config.ModConfig.isClientConfigLoaded = true;
-        Constants.LOG.info("Registered Forge config for MultiplayerSpawners");
+        Constants.debug("Registered Forge config for MultiplayerSpawners");
     }
 }

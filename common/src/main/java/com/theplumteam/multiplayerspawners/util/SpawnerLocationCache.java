@@ -28,20 +28,20 @@ public class SpawnerLocationCache {
 
     public static void addSpawner(ResourceKey<Level> dimension, BlockPos pos) {
         spawnerPositions.computeIfAbsent(dimension, k -> new CopyOnWriteArraySet<>()).add(pos);
-        Constants.LOG.debug("Added spawner to cache at {}", pos);
+        Constants.debug("Added spawner to cache at {}", pos);
     }
 
     public static void removeSpawner(ResourceKey<Level> dimension, BlockPos pos) {
         Set<BlockPos> positions = spawnerPositions.get(dimension);
         if (positions != null) {
             positions.remove(pos);
-            Constants.LOG.debug("Removed spawner from cache at {}", pos);
+            Constants.debug("Removed spawner from cache at {}", pos);
         }
     }
 
     public static void clear() {
         spawnerPositions.clear();
-        Constants.LOG.info("Cleared spawner location cache.");
+        Constants.debug("Cleared spawner location cache.");
     }
 
     @SuppressWarnings("unchecked")
@@ -60,7 +60,7 @@ public class SpawnerLocationCache {
                 // it's the only method in ChunkMap that takes no arguments and returns an Iterable.
                 for (final Method method : ChunkMap.class.getDeclaredMethods()) {
                     if (method.getParameterCount() == 0 && method.getReturnType() == Iterable.class) {
-                        Constants.LOG.debug("Found ChunkMap#getChunks method by signature: {}", method.getName());
+                        Constants.debug("Found ChunkMap#getChunks method by signature: {}", method.getName());
                         getChunksMethod = method;
                         getChunksMethod.setAccessible(true);
                         break;
@@ -88,6 +88,6 @@ public class SpawnerLocationCache {
             throw new RuntimeException("Failed to access ChunkMap#getChunks via reflection", e);
         }
 
-        Constants.LOG.info("Populated spawner cache for dimension {}: found {} spawners", dimension.location(), positions.size());
+        Constants.debug("Populated spawner cache for dimension {}: found {} spawners", dimension.location(), positions.size());
     }
 }

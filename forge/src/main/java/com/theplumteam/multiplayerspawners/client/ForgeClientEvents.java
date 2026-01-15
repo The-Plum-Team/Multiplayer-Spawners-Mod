@@ -18,7 +18,7 @@ public class ForgeClientEvents {
     @SubscribeEvent
     public static void onClientDisconnect(ClientPlayerNetworkEvent.LoggingOut event) {
         if (event.getPlayer() != null) {
-            Constants.LOG.info("CLIENT: Player disconnecting, clearing spawner data");
+            Constants.debug("CLIENT: Player disconnecting, clearing spawner data");
             ClientEventHandler.onClientDisconnect();
         }
     }
@@ -29,7 +29,7 @@ public class ForgeClientEvents {
     @SubscribeEvent
     public static void onClientConnect(ClientPlayerNetworkEvent.LoggingIn event) {
         if (event.getPlayer() != null) {
-            Constants.LOG.info("CLIENT: Player connecting, clearing old spawner data");
+            Constants.debug("CLIENT: Player connecting, clearing old spawner data");
             ClientEventHandler.onClientConnect();
         }
     }
@@ -51,7 +51,7 @@ public class ForgeClientEvents {
     public static void onChunkLoad(ChunkEvent.Load event) {
         // Only handle client-side chunk loading
         if (event.getLevel().isClientSide() && event.getChunk() instanceof net.minecraft.world.level.chunk.LevelChunk chunk) {
-            Constants.LOG.debug("CLIENT: Chunk load event for {}, {}", chunk.getPos().x, chunk.getPos().z);
+            Constants.debug("CLIENT: Chunk load event for {}, {}", chunk.getPos().x, chunk.getPos().z);
             ClientEventHandler.onChunkLoad(chunk);
         }
     }
@@ -63,7 +63,7 @@ public class ForgeClientEvents {
     public static void onChunkUnload(ChunkEvent.Unload event) {
         // Only handle client-side chunk unloading
         if (event.getLevel().isClientSide() && event.getChunk() instanceof net.minecraft.world.level.chunk.LevelChunk chunk) {
-            Constants.LOG.debug("CLIENT: Chunk unload event for {}, {}", chunk.getPos().x, chunk.getPos().z);
+            Constants.debug("CLIENT: Chunk unload event for {}, {}", chunk.getPos().x, chunk.getPos().z);
             ClientEventHandler.onChunkUnload(chunk);
         }
     }
@@ -75,7 +75,7 @@ public class ForgeClientEvents {
     public static void onPlayerRespawn(net.minecraftforge.event.entity.player.PlayerEvent.PlayerRespawnEvent event) {
         // Only handle client-side respawn events
         if (event.getEntity().level().isClientSide() && event.getEntity() == Minecraft.getInstance().player) {
-            Constants.LOG.info("CLIENT: Player respawn event detected");
+            Constants.debug("CLIENT: Player respawn event detected");
             ClientEventHandler.onPlayerRespawn();
         }
     }
@@ -87,7 +87,7 @@ public class ForgeClientEvents {
     public static void onPlayerChangeDimension(net.minecraftforge.event.entity.player.PlayerEvent.PlayerChangedDimensionEvent event) {
         // Only handle client-side dimension changes
         if (event.getEntity().level().isClientSide() && event.getEntity() == Minecraft.getInstance().player) {
-            Constants.LOG.info("CLIENT: Player dimension change event detected from {} to {}",
+            Constants.debug("CLIENT: Player dimension change event detected from {} to {}",
                     event.getFrom().location(), event.getTo().location());
             ClientEventHandler.onLevelChange();
         }

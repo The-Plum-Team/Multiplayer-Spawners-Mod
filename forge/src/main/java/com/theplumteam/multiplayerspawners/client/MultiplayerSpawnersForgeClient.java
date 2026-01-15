@@ -16,7 +16,7 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 public class MultiplayerSpawnersForgeClient {
 
     public static void init() {
-        Constants.LOG.info("Initializing MultiplayerSpawners Forge client");
+        Constants.debug("Initializing MultiplayerSpawners Forge client");
 
         // Register client setup event
         FMLJavaModLoadingContext.get().getModEventBus().addListener(MultiplayerSpawnersForgeClient::onClientSetup);
@@ -27,7 +27,7 @@ public class MultiplayerSpawnersForgeClient {
         ItemBlockRenderTypes.setRenderLayer(ModBlocksItems.UNLIT_TORCH.get(), RenderType.cutout());
         ItemBlockRenderTypes.setRenderLayer(ModBlocksItems.UNLIT_WALL_TORCH.get(), RenderType.cutout());
 
-        Constants.LOG.info("MultiplayerSpawners Forge client setup complete");
+        Constants.debug("MultiplayerSpawners Forge client setup complete");
     }
 
     /**

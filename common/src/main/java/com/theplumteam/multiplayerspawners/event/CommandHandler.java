@@ -30,7 +30,25 @@ public class CommandHandler {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             NetworkHandler.getInstance().sendAllSpawnerStatesToPlayer(player);
         }
-        Constants.LOG.info("Refreshed spawner states for all {} players", server.getPlayerList().getPlayers().size());
+        Constants.debug("Refreshed spawner states for all {} players", server.getPlayerList().getPlayers().size());
+    }
+
+    /**
+     * Helper to save config changes to disk immediately.
+     * This ensures settings persist after server restart/world reload.
+     */
+    private static void saveServerConfig() {
+        try {
+            // Check if the spec is loaded before attempting to save
+            if (ModConfig.SERVER_SPEC.isLoaded()) {
+                ModConfig.SERVER_SPEC.save();
+                Constants.debug("MultiplayerSpawners configuration successfully saved to disk.");
+            } else {
+                Constants.LOG.warn("Could not save configuration: Config spec not loaded.");
+            }
+        } catch (Exception e) {
+            Constants.LOG.error("Failed to save MultiplayerSpawners configuration", e);
+        }
     }
 
     public static void register(com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher) {
@@ -41,6 +59,9 @@ public class CommandHandler {
                             boolean current = ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
                             boolean newValue = !current;
                             ModConfig.SERVER.treatPlacedSpawnersAsVanilla.set(newValue);
+
+                            // EXPLICITLY SAVE TO DISK
+                            saveServerConfig();
 
                             String status = newValue ? "TREATED AS VANILLA" : "TREATED AS MULTIPLAYER";
                             ChatFormatting color = newValue ? ChatFormatting.GREEN : ChatFormatting.GOLD;
@@ -71,13 +92,16 @@ public class CommandHandler {
 
                                     ModConfig.SERVER.requiredBreakAttempts.set(newValue);
 
+                                    // EXPLICITLY SAVE TO DISK
+                                    saveServerConfig();
+
                                     String type = (newValue == 1) ? "ONE-HIT (Break message on first hit)" : "TWO-STEP (Break message on second hit)";
                                     ChatFormatting color = (newValue == 1) ? ChatFormatting.GOLD : ChatFormatting.GREEN;
 
                                     context.getSource().sendSuccess(() -> Component.literal("Spawner break attempts set to: " + newValue + " [" + type + "]")
                                             .withStyle(color), true);
 
-                                    Constants.LOG.info("Player {} changed requiredBreakAttempts from {} to {}",
+                                    Constants.debug("Player {} changed requiredBreakAttempts from {} to {}",
                                         context.getSource().getTextName(), oldValue, newValue);
 
                                     return 1;
@@ -90,6 +114,9 @@ public class CommandHandler {
                             boolean current = ModConfig.SERVER.allowSpawnerBreakMessage.get();
                             boolean newValue = !current;
                             ModConfig.SERVER.allowSpawnerBreakMessage.set(newValue);
+
+                            // EXPLICITLY SAVE TO DISK
+                            saveServerConfig();
 
                             String status = newValue ? "ENABLED" : "DISABLED";
                             ChatFormatting color = newValue ? ChatFormatting.GREEN : ChatFormatting.RED;
@@ -148,7 +175,7 @@ public class CommandHandler {
                                                     world.destroyBlock(pos, false, player);
 
                                                     player.displayClientMessage(Component.literal("Spawner successfully broken and removed!").withStyle(ChatFormatting.GREEN), false);
-                                                    Constants.LOG.info("Player {} broke disabled spawner at {} via command", player.getName().getString(), pos);
+                                                    Constants.debug("Player {} broke disabled spawner at {} via command", player.getName().getString(), pos);
 
                                                     return 1;
                                                 })
@@ -170,15 +197,18 @@ public class CommandHandler {
                                             // Update the config value
                                             ModConfig.SERVER.torchExtinguishDelaySeconds.set(newDelay);
 
+                                            // EXPLICITLY SAVE TO DISK
+                                            saveServerConfig();
+
                                             if (newDelay == 0) {
                                                 source.sendSuccess(() -> Component.literal("Torch extinguishing has been DISABLED. Torches will no longer be extinguished by spawners.")
                                                         .withStyle(ChatFormatting.GOLD), true);
-                                                Constants.LOG.info("Player {} disabled torch extinguishing (was {} seconds)",
+                                                Constants.debug("Player {} disabled torch extinguishing (was {} seconds)",
                                                         source.getTextName(), oldDelay);
                                             } else {
                                                 source.sendSuccess(() -> Component.literal("Torch extinguish delay set to " + newDelay + " seconds (was " + oldDelay + " seconds)")
                                                         .withStyle(ChatFormatting.GREEN), true);
-                                                Constants.LOG.info("Player {} changed torch extinguish delay from {} to {} seconds",
+                                                Constants.debug("Player {} changed torch extinguish delay from {} to {} seconds",
                                                         source.getTextName(), oldDelay, newDelay);
                                             }
 

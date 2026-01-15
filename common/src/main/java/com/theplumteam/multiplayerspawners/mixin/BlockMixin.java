@@ -38,7 +38,7 @@ public abstract class BlockMixin {
         Block thisBlock = (Block) (Object) this;
         if (thisBlock instanceof SpawnerBlock) {
             builder.add(SpawnerStateProperties.MULTIPLAYER_ACTIVATED);
-            Constants.LOG.info("BLOCK_MIXIN: Added MULTIPLAYER_ACTIVATED property to spawner block");
+            Constants.debug("BLOCK_MIXIN: Added MULTIPLAYER_ACTIVATED property to spawner block");
         }
     }
 
@@ -59,7 +59,7 @@ public abstract class BlockMixin {
                 if (currentDefault.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
                     // Default to active - the client-side renderer will handle the actual display
                     this.registerDefaultState(currentDefault.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, true));
-                    Constants.LOG.info("BLOCK_MIXIN: Set default state for spawner block to MULTIPLAYER_ACTIVATED=true");
+                    Constants.debug("BLOCK_MIXIN: Set default state for spawner block to MULTIPLAYER_ACTIVATED=true");
                 } else {
                     Constants.LOG.warn("BLOCK_MIXIN: Spawner block {} does not have MULTIPLAYER_ACTIVATED property, skipping default state setup", thisBlock.getClass().getSimpleName());
                 }
@@ -83,7 +83,7 @@ public abstract class BlockMixin {
                     accessor.multiplayerspawners$setPlayerPlaced(true);
                     spawnerBe.setChanged();
 
-                    Constants.LOG.debug("Marked spawner at {} as player-placed by {}.", pos, placer.getName().getString());
+                    Constants.debug("Marked spawner at {} as player-placed by {}.", pos, placer.getName().getString());
 
                     // 2. CHECK CONFIG AND SYNC VISUALS IMMEDIATELY
                     // If the config says player-placed spawners should be vanilla, we MUST tell the client immediately.
@@ -95,7 +95,7 @@ public abstract class BlockMixin {
                                 accessor.multiplayerspawners$getDisabledPlayers(),
                                 true // treatedAsVanilla = TRUE
                         );
-                        Constants.LOG.debug("Synced vanilla visual state for new player-placed spawner at {}", pos);
+                        Constants.debug("Synced vanilla visual state for new player-placed spawner at {}", pos);
                     }
                 }
             }
