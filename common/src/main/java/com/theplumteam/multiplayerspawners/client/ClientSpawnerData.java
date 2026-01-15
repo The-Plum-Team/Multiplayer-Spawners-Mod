@@ -5,6 +5,7 @@ import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.block.SpawnerStateProperties;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.SpawnerBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -44,19 +45,18 @@ public class ClientSpawnerData {
         boolean stateChanged = (previousState == null || !previousState.equals(isDisabledForPlayer));
         boolean treatmentChanged = (wasVanillaTreated != treatedAsVanilla);
 
-        if (stateChanged || treatmentChanged) {
-            Constants.debug("CLIENT: Spawner at {} updated - disabled: {}, treatedAsVanilla: {} (was: disabled={}, vanilla={})",
-                    pos, isDisabledForPlayer, treatedAsVanilla, previousState, wasVanillaTreated);
+        Constants.debug("CLIENT: Spawner at {} updated - disabled: {}, treatedAsVanilla: {} (was: disabled={}, vanilla={})",
+                pos, isDisabledForPlayer, treatedAsVanilla, previousState, wasVanillaTreated);
 
-            // Try to update immediately
-            boolean success = updateBlockStateInWorld(pos, isDisabledForPlayer, false);
+        // Always force an update when a packet arrives.
+        boolean forceUpdate = true;
+        boolean success = updateBlockStateInWorld(pos, isDisabledForPlayer, forceUpdate);
 
-            // If failed (e.g. block is temporarily AIR due to break prediction), mark for update later
-            if (!success) {
-                spawnersNeedingUpdate.add(pos);
-            } else {
-                spawnersNeedingUpdate.remove(pos);
-            }
+        // If failed (e.g. chunk not loaded), mark for update later
+        if (!success) {
+            spawnersNeedingUpdate.add(pos);
+        } else {
+            spawnersNeedingUpdate.remove(pos);
         }
     }
 
@@ -65,7 +65,24 @@ public class ClientSpawnerData {
         if (minecraft.level == null || !minecraft.level.isLoaded(pos)) return false;
 
         var currentState = minecraft.level.getBlockState(pos);
-        if (!(currentState.getBlock() instanceof SpawnerBlock)) return false; // Block is AIR or replaced
+
+        // CRITICAL FIX: Ghost Block Handling
+        // If the client predicted the break, currentState is likely AIR.
+        // The old code returned 'false' here, so the Spawner never reappeared.
+        // Now, if forceUpdate is true (packet received), we assume a Spawner exists there.
+        boolean isSpawner = currentState.getBlock() instanceof SpawnerBlock;
+
+        if (!isSpawner) {
+            if (forceUpdate) {
+                // The client thinks it's AIR (or something else), but the server sent a spawner update.
+                // We must forcefully restore the Spawner block to fix the "invisible block" glitch.
+                // We use the vanilla spawner block as a base.
+                currentState = Blocks.SPAWNER.defaultBlockState();
+            } else {
+                // If this is just a routine check (not forced by packet) and it's not a spawner, ignore it.
+                return false;
+            }
+        }
 
         if (!currentState.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) return false;
 
@@ -83,7 +100,11 @@ public class ClientSpawnerData {
         if (currentActivated != newActivated || forceUpdate) {
             try {
                 var newState = currentState.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, newActivated);
+                // Flag 3 = Block Update + Send to Clients (Render Update)
+                // Flag 16 = Prevent Neighbor Reactions (important to stop chains)
+                // We must use setBlock to physically put the block back if it was AIR
                 minecraft.level.setBlock(pos, newState, 3);
+
                 markBlockForRerender(pos, currentState, newState);
                 return true;
             } catch (Exception e) {
@@ -97,6 +118,7 @@ public class ClientSpawnerData {
         var minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.levelRenderer == null) return;
         try {
+            // Forcefully notify the renderer that this block changed
             minecraft.level.sendBlockUpdated(pos, oldState, newState, 3);
             minecraft.level.setBlocksDirty(pos, oldState, newState);
             minecraft.levelRenderer.setBlocksDirty(pos.getX(), pos.getY(), pos.getZ(), pos.getX(), pos.getY(), pos.getZ());
@@ -198,7 +220,6 @@ public class ClientSpawnerData {
         var spawnersToCorrect = new ArrayList<BlockPos>();
 
         // We iterate over known spawners.
-        // CRITICAL FIX: We do NOT remove data if the block is missing.
         for (Map.Entry<BlockPos, Boolean> entry : playerDisabledSpawners.entrySet()) {
             BlockPos spawnerPos = entry.getKey();
 

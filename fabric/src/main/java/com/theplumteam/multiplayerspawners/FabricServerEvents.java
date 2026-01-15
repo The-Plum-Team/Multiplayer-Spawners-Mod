@@ -3,9 +3,11 @@ package com.theplumteam.multiplayerspawners;
 import com.theplumteam.multiplayerspawners.event.CommandHandler;
 import com.theplumteam.multiplayerspawners.event.PlayerEventHandler;
 import com.theplumteam.multiplayerspawners.event.ServerLifecycleHandler;
+import com.theplumteam.multiplayerspawners.network.FabricNetworkHandler;
 import com.theplumteam.multiplayerspawners.util.TorchTracker;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
@@ -39,5 +41,10 @@ public class FabricServerEvents {
         ServerTickEvents.END_SERVER_TICK.register(TorchTracker::onServerTick);
         ServerWorldEvents.LOAD.register((server, level) -> ServerLifecycleHandler.onLevelLoad(level));
         ServerLifecycleEvents.SERVER_STOPPING.register(ServerLifecycleHandler::onServerStopping);
+
+        // Register chunk load event to sync spawner states as chunks stream in
+        ServerChunkEvents.CHUNK_LOAD.register((serverLevel, chunk) -> {
+            FabricNetworkHandler.sendChunkSpawnerStatesToTracking(serverLevel, chunk);
+        });
     }
 }

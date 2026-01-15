@@ -99,31 +99,69 @@ public class FabricNetworkHandler extends NetworkHandler {
             int chunkX = playerPos.getX() >> 4;
             int chunkZ = playerPos.getZ() >> 4;
 
-            List<SpawnerStatePacket.SpawnerUpdate> updates = new ArrayList<>();
-
             for (int dx = -viewDistance; dx <= viewDistance; dx++) {
                 for (int dz = -viewDistance; dz <= viewDistance; dz++) {
-                    LevelChunk chunk = serverLevel.getChunk(chunkX + dx, chunkZ + dz);
+                    LevelChunk chunk = serverLevel.getChunkSource().getChunk(chunkX + dx, chunkZ + dz, false);
                     if (chunk != null) {
-                        chunk.getBlockEntities().forEach((pos, blockEntity) -> {
-                            if (blockEntity instanceof SpawnerBlockEntity spawnerBlockEntity) {
-                                SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
-                                Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
-                                boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
-                                        && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
-
-                                if (!disabledPlayers.isEmpty() || treatedAsVanilla) {
-                                    updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, disabledPlayers, treatedAsVanilla));
-                                }
-                            }
-                        });
+                        sendChunkSpawnerStatesToPlayer(player, chunk);
                     }
                 }
             }
+        }
+    }
 
-            if (!updates.isEmpty()) {
-                sendBatchedStatesToPlayer(player, updates, true);
+    @Override
+    public void sendChunkSpawnerStatesToPlayer(ServerPlayer player, LevelChunk chunk) {
+        List<SpawnerStatePacket.SpawnerUpdate> updates = collectSpawnerUpdates(chunk);
+
+        if (!updates.isEmpty()) {
+            sendBatchedStatesToPlayer(player, updates, true);
+        }
+    }
+
+    /**
+     * Sends spawner states for a chunk to all players tracking it.
+     * Used by chunk load events.
+     */
+    public static void sendChunkSpawnerStatesToTracking(ServerLevel serverLevel, LevelChunk chunk) {
+        List<SpawnerStatePacket.SpawnerUpdate> updates = collectSpawnerUpdates(chunk);
+
+        if (!updates.isEmpty()) {
+            // Send to all players tracking this chunk
+            for (ServerPlayer player : PlayerLookup.tracking(serverLevel, chunk.getPos())) {
+                // Split into chunks of 100 to avoid packet size limits
+                int batchSize = 100;
+                for (int i = 0; i < updates.size(); i += batchSize) {
+                    int end = Math.min(updates.size(), i + batchSize);
+                    List<SpawnerStatePacket.SpawnerUpdate> batch = updates.subList(i, end);
+
+                    FriendlyByteBuf buf = PacketByteBufs.create();
+                    SpawnerStatePacket packet = new SpawnerStatePacket(batch, false);
+                    packet.write(buf);
+
+                    ServerPlayNetworking.send(player, SPAWNER_STATE_PACKET_ID, buf);
+                }
             }
         }
+    }
+
+    /**
+     * Collects spawner updates from a chunk.
+     */
+    public static List<SpawnerStatePacket.SpawnerUpdate> collectSpawnerUpdates(LevelChunk chunk) {
+        List<SpawnerStatePacket.SpawnerUpdate> updates = new ArrayList<>();
+        chunk.getBlockEntities().forEach((pos, blockEntity) -> {
+            if (blockEntity instanceof SpawnerBlockEntity spawnerBlockEntity) {
+                SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
+                Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+                boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
+                        && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
+
+                if (!disabledPlayers.isEmpty() || treatedAsVanilla) {
+                    updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, disabledPlayers, treatedAsVanilla));
+                }
+            }
+        });
+        return updates;
     }
 }
