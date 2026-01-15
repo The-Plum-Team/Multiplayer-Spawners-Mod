@@ -20,6 +20,8 @@ public class FabricServerEvents {
         });
 
         // Register event handlers
+        // These serve as a "first pass" sync on login/respawn.
+        // The Mixin handles the rest (teleporting, walking, chunk loading).
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             PlayerEventHandler.onPlayerJoin(handler.getPlayer());
         });
@@ -28,15 +30,15 @@ public class FabricServerEvents {
             PlayerEventHandler.onPlayerRespawn(newPlayer);
         });
 
-        // For dimension changes, we use copy from event
         ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) -> {
             if (oldPlayer.serverLevel() != newPlayer.serverLevel()) {
                 PlayerEventHandler.onPlayerChangeDimension(newPlayer);
             }
         });
 
-        // Register server lifecycle events for new mechanic
+        // Register server lifecycle events
         ServerTickEvents.END_SERVER_TICK.register(TorchTracker::onServerTick);
+
         ServerWorldEvents.LOAD.register((server, level) -> ServerLifecycleHandler.onLevelLoad(level));
         ServerLifecycleEvents.SERVER_STOPPING.register(ServerLifecycleHandler::onServerStopping);
     }

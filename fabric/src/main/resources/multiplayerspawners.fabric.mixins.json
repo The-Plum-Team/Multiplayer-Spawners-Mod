@@ -4,6 +4,7 @@
   "package": "com.theplumteam.multiplayerspawners.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "FabricChunkSyncMixin"
   ],
   "client": [
     "MixinTitleScreen",
