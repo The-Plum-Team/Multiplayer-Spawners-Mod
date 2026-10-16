@@ -1,0 +1,90 @@
+# Project and release contract
+
+This file is part of the repository-wide instruction set imported by `AGENTS.md`. Together, the
+documents listed there are the source of truth for coding agents working anywhere below the
+repository root. The two shared documents imported first (`docs/ai/shared/REPOSITORY.md` and
+`docs/ai/shared/PUBLIC-EVIDENCE.md`) are managed by mod-base and hold the rules every mod shares;
+this file and the other local imports hold only what is specific to MultiplayerSpawners.
+
+## Documentation map
+
+- `AGENTS.md` is the import-only manifest for the complete coding-agent instruction set. Its first
+  two lines are the managed shared documents; the rest are listed in `site/mod-base.json`
+  `template.agents_local`.
+- `CONTRIBUTING.md` is the human-facing path from a fresh fork to a reviewed pull request.
+- `README.md` is for users and builders.
+- `docs/architecture/decisions/` records evidence-backed architectural decisions.
+- `site/mod-base.json` and `scripts/pages/mod_base_adapter.py` connect this repository to the
+  mod-base public-evidence kit; `scripts/ci/mod_base_kit.py` finds the pinned kit.
+
+## What MultiplayerSpawners is
+
+Per-player spawners for multiplayer servers: breaking a spawner disables it for that player
+(and, with group disabling, nearby players) while it stays active for everyone else. It also puts
+out torches placed near spawners and can treat player-placed spawners as vanilla ones.
+
+`release/release-matrix.json` is the single authoritative inventory of supported Minecraft
+versions, loaders, Java versions and dependency versions: 1.20.1 on Fabric and Forge, 1.21.1 to
+26.3 on Fabric and NeoForge (34 lanes). It is validated by `scripts/release/matrix.py`. Never
+duplicate that inventory in Gradle, scripts, workflows or documentation, and never infer support
+from directory or branch names: the README shows a summary for users only.
+
+## Source layout
+
+- `common/`, `fabric/`, `forge/`, `neoforge/`: one Stonecutter source tree per module.
+  Stonecutter generates each version's sources into `<module>/versions/<minecraft>/build/`, which
+  is generated output and never edited or committed.
+- Code that differs between Minecraft versions is a Stonecutter condition in the shared tree:
+
+  ```java
+  //? if >=1.21.2 {
+  properties = properties.setId(ResourceKey.create(Registries.BLOCK, Constants.id(name)));
+  //?} else {
+  /*properties = ...;
+  *///?}
+  ```
+
+  Keep conditions as narrow as the change: wrap the one call or signature, not a whole class.
+  Prefer an API that exists in every version (for example `sendSystemMessage` over
+  `displayClientMessage`) to a condition.
+- Pure renames with no behaviour change are rewritten as the sources are generated, in
+  `gradle/lane-conventions.gradle.kts` (`sourceRenames`), instead of a condition around every use.
+- Resource format changes (`loot_tables/` to `loot_table/` from 1.21, item definitions from
+  1.21.4, `forge_data` to `neoforge_data`) are handled in `common/build.gradle.kts`.
+- Loader code only moves data: networking transport, events and registration. What to sync, when
+  and in which batches is decided in `common` (`NetworkHandler`).
+- The config is the mod's own reader and writer (`common/.../config/ModConfig.java`) of the files
+  it has always used: `<world>/serverconfig/multiplayerspawners-server.toml` and
+  `config/multiplayerspawners-client.toml`. Keep their keys and layout compatible.
+
+## Task routing
+
+| Change scope | Start from | Expected destination |
+|---|---|---|
+| Behaviour shared by every loader and version | `main` | `common/src/main` |
+| One loader | `main` | `<loader>/src/main` |
+| One Minecraft version or range | `main` | A Stonecutter condition or a rename rule in the shared tree |
+| Supported version/loader inventory | `release/release-matrix.json` | A lane that builds and passes the server smoke test |
+| Generated output or staged artifacts | Nowhere | Fix the tracked input instead |
+
+Adding a Minecraft version: add its lanes to the matrix (dependency versions included), validate
+it, build that version, then smoke-test it. A mixin target is a string that javac does not check,
+so a version is not supported until `scripts/e2e/server_smoke.py` passes for each of its lanes.
+
+## Verification
+
+From the smallest check to the aggregate gate:
+
+```bash
+git diff --check
+python3 scripts/ci/mod_base_kit.py verify --network
+python3 scripts/ci/mod_base_kit.py run template check --repo .
+python3 scripts/release/matrix.py
+./gradlew -PmpsTarget=<minecraft> buildTarget
+python3 scripts/e2e/server_smoke.py --minecraft <minecraft>
+python3 scripts/release/build_matrix.py && python3 scripts/e2e/server_smoke.py --all
+```
+
+The server smoke test starts each lane's real dedicated server with the production jar and makes
+Mixin apply every mixin at start (`-Dmultiplayerspawners.mixinAudit=true`). Client-only mixins do
+not load on a server; check their targets against every version when changing them.

@@ -6,8 +6,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -17,6 +16,8 @@ jobs:
   matrix:
     name: Release matrix
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       versions: ${{ steps.matrix.outputs.versions }}
     steps:
@@ -34,6 +35,8 @@ jobs:
     name: Minecraft ${{ matrix.minecraft }}
     needs: matrix
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.matrix.outputs.versions) }}
@@ -55,13 +58,17 @@ jobs:
             25
           cache: gradle
       - name: Build the jars
+        env:
+          MINECRAFT: ${{ matrix.minecraft }}
         run: >
-          ./gradlew -PmpsTarget=${{ matrix.minecraft }} buildTarget --console=plain
+          ./gradlew "-PmpsTarget=$MINECRAFT" buildTarget --console=plain
           -Porg.gradle.java.installations.auto-detect=false
           -Porg.gradle.java.installations.fromEnv=JAVA_HOME_17_X64,JAVA_HOME_21_X64,JAVA_HOME_25_X64
       - name: Start a dedicated server with each jar
+        env:
+          MINECRAFT: ${{ matrix.minecraft }}
         run: >
-          python3 -I scripts/e2e/server_smoke.py --minecraft ${{ matrix.minecraft }}
+          python3 -I scripts/e2e/server_smoke.py --minecraft "$MINECRAFT"
           --java "17=$JAVA_HOME_17_X64" --java "21=$JAVA_HOME_21_X64" --java "25=$JAVA_HOME_25_X64"
       - name: Upload the server logs
         if: failure()
@@ -76,3 +83,19 @@ jobs:
           name: jars-${{ matrix.minecraft }}
           path: "*/versions/${{ matrix.minecraft }}/build/libs/MultiplayerSpawners-*-${{ matrix.minecraft }}-*[0-9].jar"
           if-no-files-found: error
+
+  # One fixed name for the ruleset to require, whatever versions the matrix lists.
+  all-versions:
+    name: All Minecraft versions
+    needs: [matrix, build]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Every version built and passed its server smoke test
+        env:
+          MATRIX: ${{ needs.matrix.result }}
+          BUILD: ${{ needs.build.result }}
+        run: |
+          echo "matrix: $MATRIX, build: $BUILD"
+          [[ "$MATRIX" == success && "$BUILD" == success ]]

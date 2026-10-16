@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MATRIX = ROOT / "release" / "release-matrix.json"
 LOADERS = {"fabric", "forge", "neoforge"}
 VERSION = re.compile(r"^\d+(\.\d+){1,2}$")
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 def version_key(version: str) -> tuple[int, ...]:
@@ -75,6 +76,15 @@ def validate(matrix: dict) -> list[str]:
             problems.append(f"{where}: loader_version is missing")
         if loader == "fabric" and not artifact.get("fabric_api"):
             problems.append(f"{where}: fabric_api is missing")
+        if loader == "fabric" and not SHA256.match(str(artifact.get("fabric_api_sha256", ""))):
+            problems.append(f"{where}: fabric_api_sha256 is missing or not a SHA-256")
+        installer = matrix.get("installers", {}).get(artifact.get("installer"))
+        if installer is None:
+            problems.append(f"{where}: installer {artifact.get('installer')!r} is not in installers")
+        elif loader == "fabric" and not artifact["installer"].startswith("fabric-"):
+            problems.append(f"{where}: a Fabric lane needs the Fabric installer")
+        elif loader != "fabric" and artifact["installer"] != f"{loader}-{artifact['loader_version']}":
+            problems.append(f"{where}: installer should be {loader}-{artifact['loader_version']}")
         metadata = artifact.get("metadata", {})
         required = ["minecraft", "loader"] + ([] if loader == "fabric" else ["loader_api"])
         for key in required:
@@ -94,6 +104,18 @@ def validate(matrix: dict) -> list[str]:
             problems.append(f"{minecraft}: Forge and NeoForge cannot share a version")
         if len({row.get("java") for row in rows}) != 1 or len({row.get("no_remap") for row in rows}) != 1:
             problems.append(f"{minecraft}: lanes disagree on java/no_remap")
+
+    installers = matrix.get("installers")
+    if type(installers) is not dict or not installers:
+        problems.append("installers must map names to {url, sha256}")
+    else:
+        for name, installer in installers.items():
+            if (type(installer) is not dict or set(installer) != {"url", "sha256"}
+                    or not str(installer["url"]).startswith("https://") or not SHA256.match(str(installer["sha256"]))):
+                problems.append(f"installers.{name}: needs an https url and a sha256")
+        unused = set(installers) - {artifact.get("installer") for artifact in artifacts}
+        if unused:
+            problems.append(f"installers not used by any lane: {', '.join(sorted(unused))}")
 
     if matrix.get("default_target") not in by_version:
         problems.append(f"default_target {matrix.get('default_target')!r} is not a listed version")
