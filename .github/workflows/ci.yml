@@ -77,6 +77,9 @@ jobs:
           name: server-logs-${{ matrix.minecraft }}
           path: build/server-smoke/logs/
           if-no-files-found: ignore
+      # Three clients and a server need the runner's memory more than an idle Gradle daemon.
+      - name: Stop the Gradle daemon
+        run: ./gradlew --stop
       - name: Install the virtual display and input tools
         run: |
           sudo apt-get update -q
@@ -99,6 +102,7 @@ jobs:
           path: |
             build/multiplayer/lanes/*/screenshots/
             build/multiplayer/lanes/*/*.log
+            build/multiplayer/lanes/*/*-threads.txt
             build/multiplayer/lanes/*/result.json
           retention-days: 7
           if-no-files-found: ignore

@@ -156,6 +156,9 @@ class Server:
             f"rcon.password={RCON_PASSWORD}\nbroadcast-rcon-to-ops=false\nmax-players=10\n"
             # 26.3 turns the whitelist on by default.
             "white-list=false\nenforce-whitelist=false\n")
+        self.java = java
+        self.stuck_dumps: list[Path] = []
+        self.last_stop_stuck = False
         self.process: subprocess.Popen | None = None
         self.rcon: Rcon | None = None
         self.lines: list[str] = []
@@ -213,13 +216,41 @@ class Server:
             pass
         if self.rcon:
             self.rcon.close()
+        self.last_stop_stuck = False
         try:
             self.process.wait(timeout=server_smoke.STOP_TIMEOUT)
         except subprocess.TimeoutExpired:
+            # Keep what every thread was doing before killing the server: the dump decides
+            # whether the mod is what kept it alive (see stopped_cleanly).
+            dump = self.work / f"server-{self.starts}-threads.txt"
+            jstack = Path(self.java).with_name("jstack")
+            with dump.open("w", encoding="utf-8") as out:
+                subprocess.run([str(jstack), str(self.process.pid)], stdout=out, stderr=subprocess.STDOUT,
+                               timeout=60, check=False)
+            self.stuck_dumps.append(dump)
+            self.last_stop_stuck = True
             os.killpg(self.process.pid, signal.SIGKILL)
             self.process.wait()
         time.sleep(1)
         return self.process.returncode
+
+    def stopped_cleanly(self, code: int | None) -> str | None:
+        """None when the last stop was clean, else what went wrong.
+
+        A clean stop exits with 0. On a loaded machine a server sometimes saves everything and
+        then never exits; that counts as clean only when the log shows the complete save and no
+        thread of the mod is in the dump taken before it was killed."""
+
+        if code == 0:
+            return None
+        log = (self.work / f"server-{self.starts}.log").read_text(encoding="utf-8", errors="replace")
+        saved = "All dimensions are saved" in log
+        dump = self.stuck_dumps[-1].read_text(encoding="utf-8", errors="replace") if self.last_stop_stuck else ""
+        if saved and dump and MOD_ID not in dump.lower():
+            return None
+        return (f"the server exited with {code} when stopped"
+                + ("" if saved else " before saving the world")
+                + (f" and a thread of the mod kept it alive ({self.stuck_dumps[-1].name})" if MOD_ID in dump.lower() else ""))
 
 
 # --------------------------------------------------------------------------------------------
@@ -723,8 +754,11 @@ class Lane:
     def step_persistence(self) -> None:
         for client in self.clients.values():
             client.kill()
-        code = self.server.stop()
-        self.check(code == 0, f"the server exited with {code} when stopped")
+        stuck = len(self.server.stuck_dumps)
+        problem = self.server.stopped_cleanly(self.server.stop())
+        self.check(problem is None, problem or "")
+        if len(self.server.stuck_dumps) > stuck:
+            self.notes.append(f"the server saved and stopped but did not exit; killed ({self.server.stuck_dumps[-1].name})")
         self.server.start()
         self.check(self.disabled_players(S1) == {"Alice", "Bob", "Carol"},
                    f"after the restart S1 is disabled for {sorted(self.disabled_players(S1))}")
@@ -790,8 +824,11 @@ class Lane:
     def step_stopped(self) -> None:
         for client in self.clients.values():
             client.kill()
-        code = self.server.stop()
-        self.check(code == 0, f"the server exited with {code} when stopped")
+        stuck = len(self.server.stuck_dumps)
+        problem = self.server.stopped_cleanly(self.server.stop())
+        self.check(problem is None, problem or "")
+        if len(self.server.stuck_dumps) > stuck:
+            self.notes.append(f"the server saved and stopped but did not exit; killed ({self.server.stuck_dumps[-1].name})")
         problems = [line.strip()[:300] for line in self.server.lines
                     if re.search(r"/(ERROR|FATAL)\]", line) and MOD_ID in line.lower()]
         self.check(not problems, "the server logged errors from the mod: " + " | ".join(problems[:3]))
