@@ -370,9 +370,15 @@ class Client:
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
 
     def focus(self) -> None:
-        window = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "Minecraft"],
-                                env=dict(os.environ, DISPLAY=self.display), capture_output=True, text=True,
-                                timeout=30).stdout.split()
+        # GLFW titles its window "Minecraft* <version>" where xdotool's name search sees it; the SDL3
+        # window of 26.3 only matches by class (its hidden helper window is never visible).
+        window: list[str] = []
+        for search in (["--name", "Minecraft"], ["--class", "."]):
+            window = subprocess.run(["xdotool", "search", "--onlyvisible", *search],
+                                    env=dict(os.environ, DISPLAY=self.display), capture_output=True, text=True,
+                                    timeout=30).stdout.split()
+            if window:
+                break
         if not window:
             raise ScenarioFailure(f"{self.name}'s game window is not on its display")
         self.xdotool("windowfocus", "--sync", window[0])
