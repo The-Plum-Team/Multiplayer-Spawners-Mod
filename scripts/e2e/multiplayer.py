@@ -187,7 +187,16 @@ class Server:
                 raise ScenarioFailure(f"the server did not finish starting (server-{self.starts}.log ends with: "
                                       f"{last[0][:300]})")
             time.sleep(0.5)
-        self.rcon = Rcon(self.rcon_port)
+        # The server opens RCON a moment after it reports "Done".
+        deadline = time.monotonic() + 60
+        while True:
+            try:
+                self.rcon = Rcon(self.rcon_port)
+                break
+            except ConnectionRefusedError:
+                if self.process.poll() is not None or time.monotonic() > deadline:
+                    raise ScenarioFailure("the server never opened RCON") from None
+                time.sleep(1)
 
     def run(self, command: str) -> str:
         return self.rcon.command(command)
@@ -557,7 +566,31 @@ class Lane:
         answer = self.run(f"item replace entity {player} hotbar.0 with {item}")
         self.check("Replaced" in answer, f"could not give {player} {item}: {answer}")
 
+    def position(self, player: str) -> tuple[float, float, float]:
+        answer = self.run(f"data get entity {player} Pos")
+        values = re.findall(r"(-?[0-9.]+)d", answer)
+        if len(values) != 3:
+            raise ScenarioFailure(f"could not read where {player} is: {answer}")
+        return float(values[0]), float(values[1]), float(values[2])
+
+    def clear_view(self, player: str, block: tuple[int, int, int]) -> None:
+        """Move the other players near `block` aside, out of every camera's line to it.
+
+        They stay within the spawner and group ranges, so the checks keep their meaning; a
+        player who spawned on a camera spot would otherwise fill that camera's screen."""
+
+        spots = iter(((5.5, -4.5), (-4.5, -4.5)))
+        for other in PLAYERS:
+            if other == player:
+                continue
+            x, _, z = self.position(other)
+            if math.hypot(x - block[0] - 0.5, z - block[2] - 0.5) <= 8:
+                dx, dz = next(spots)
+                self.look(other, (block[0] + 0.5, block[1] + 0.5, block[2] + 0.5),
+                          (block[0] + 0.5 + dx, FEET, block[2] + 0.5 + dz))
+
     def view(self, player: str, block: tuple[int, int, int], offset: tuple[float, float], name: str) -> float:
+        self.clear_view(player, block)
         self.look_at_block(player, block, offset)
         self.clear_spawned()
         time.sleep(2.5)
