@@ -11,8 +11,8 @@
       "ThePlumTeam"
     ],
     "license": "CC0-1.0",
-    "sources": "https://github.com/The-Plum-Team/MultiplayerSpawners",
-    "issues": "https://github.com/The-Plum-Team/MultiplayerSpawners/issues"
+    "sources": "https://github.com/The-Plum-Team/Multiplayer-Spawners-Mod",
+    "issues": "https://github.com/The-Plum-Team/Multiplayer-Spawners-Mod/issues"
   },
   "installers": {
     "fabric-1.1.0": {
