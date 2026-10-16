@@ -1,7 +1,11 @@
 package com.theplumteam.multiplayerspawners.mixin;
 
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
-import net.minecraft.network.PacketSendListener;
+//? if >=1.21.6 {
+import io.netty.channel.ChannelFutureListener;
+//?} else {
+/*import net.minecraft.network.PacketSendListener;
+*///?}
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -27,8 +31,13 @@ import net.minecraft.server.network.ServerCommonPacketListenerImpl;
 *///?}
 public abstract class FabricChunkSyncMixin {
 
-    @Inject(method = "send(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketSendListener;)V", at = @At("RETURN"))
+    //? if >=1.21.6 {
+    @Inject(method = "send(Lnet/minecraft/network/protocol/Packet;Lio/netty/channel/ChannelFutureListener;)V", at = @At("RETURN"))
+    private void multiplayerspawners$onSendPacket(Packet<?> packet, ChannelFutureListener listener, CallbackInfo ci) {
+    //?} else {
+    /*@Inject(method = "send(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketSendListener;)V", at = @At("RETURN"))
     private void multiplayerspawners$onSendPacket(Packet<?> packet, PacketSendListener listener, CallbackInfo ci) {
+    *///?}
         if (packet instanceof ClientboundLevelChunkWithLightPacket chunkPacket
                 && (Object) this instanceof ServerGamePacketListenerImpl gamePacketListener) {
             ServerPlayer player = gamePacketListener.player;

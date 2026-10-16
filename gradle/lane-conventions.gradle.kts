@@ -72,8 +72,7 @@ tasks.named<ProcessResources>("processResources") {
 val sourceRenames = buildList {
     // 1.21.11 renamed ResourceLocation to Identifier and nothing else about it.
     if (atLeast("1.21.11")) add(Regex("\\bResourceLocation\\b") to "Identifier")
-    // 26.1: Fabric API's "world" names became "level", and play payloads became "clientbound".
-    if (atLeast("26.1")) add(Regex("\\bServerWorldEvents\\b") to "ServerLevelEvents")
+    // 26.1 renamed Fabric API's play payload registries after the packet direction.
     if (atLeast("26.1")) add(Regex("\\bplayS2C\\(\\)") to "clientboundPlay()")
     // 26.3 renamed PushReaction.DESTROY to POPPED.
     if (atLeast("26.3")) add(Regex("\\bPushReaction\\.DESTROY\\b") to "PushReaction.POPPED")

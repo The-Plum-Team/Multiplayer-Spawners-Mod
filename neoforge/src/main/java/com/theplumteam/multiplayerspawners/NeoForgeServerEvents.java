@@ -15,7 +15,6 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.ChunkEvent;
 import net.neoforged.neoforge.event.level.ChunkWatchEvent;
-import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
@@ -51,13 +50,6 @@ public class NeoForgeServerEvents {
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
         TorchTracker.onServerTick(event.getServer());
-    }
-
-    @SubscribeEvent
-    public static void onLevelLoad(LevelEvent.Load event) {
-        if (event.getLevel() instanceof ServerLevel serverLevel) {
-            ServerLifecycleHandler.onLevelLoad(serverLevel);
-        }
     }
 
     @SubscribeEvent

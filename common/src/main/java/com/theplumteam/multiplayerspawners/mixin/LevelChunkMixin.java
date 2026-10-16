@@ -2,7 +2,6 @@ package com.theplumteam.multiplayerspawners.mixin;
 
 import com.theplumteam.multiplayerspawners.client.ClientSpawnerData;
 import com.theplumteam.multiplayerspawners.block.SpawnerStateProperties;
-import com.theplumteam.multiplayerspawners.util.SpawnerLocationCache;
 import com.theplumteam.multiplayerspawners.util.TorchTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -98,16 +97,6 @@ public abstract class LevelChunkMixin {
             TorchTracker.addTorch(level, pos.immutable());
         } else if (wasTorch && !isTorch) {
             TorchTracker.removeTorch(level, pos.immutable());
-        }
-
-        // Spawner cache tracking
-        boolean wasSpawner = oldState.is(Blocks.SPAWNER);
-        boolean isSpawner = state.is(Blocks.SPAWNER);
-
-        if (!wasSpawner && isSpawner) {
-            SpawnerLocationCache.addSpawner(level.dimension(), pos.immutable());
-        } else if (wasSpawner && !isSpawner) {
-            SpawnerLocationCache.removeSpawner(level.dimension(), pos.immutable());
         }
     }
 }
