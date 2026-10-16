@@ -1,0 +1,76 @@
+{
+  "adapter": {
+    "dispatcher": "scripts/ci/mod_base_build_dispatch.py",
+    "files": [
+      {
+        "path": "scripts/ci/mod_base_build_adapter.py",
+        "sha256": "58053cbf2df3e5f1cacf868cc2c00f65fae2b763f38adc2f93e42ef92476342b"
+      },
+      {
+        "path": "scripts/ci/mod_base_build_dispatch.py",
+        "sha256": "e9d806e63095ae2570bbed02f29dc3bbfce063b63af3197edba1f95801a34f35"
+      },
+      {
+        "path": "scripts/ci/policy_suite.py",
+        "sha256": "9e1bc57320243130f4f0e16313c90f688ecb67f360608330a31c6bfecbf572bf"
+      }
+    ],
+    "path": "scripts/ci/mod_base_build_adapter.py",
+    "policy": "scripts/ci/policy_suite.py"
+  },
+  "admission": {
+    "approvers": [
+      {
+        "organization": "The-Plum-Team",
+        "role": "member"
+      }
+    ],
+    "command": "/controller-upgrade",
+    "protected_paths": [
+      ".github/CODEOWNERS",
+      ".github/workflows",
+      "build.gradle.kts",
+      "common/build.gradle.kts",
+      "e2e",
+      "fabric/build.gradle.kts",
+      "forge/build.gradle.kts",
+      "gradle",
+      "gradle.properties",
+      "gradlew",
+      "neoforge/build.gradle.kts",
+      "release/release-matrix.json",
+      "scripts/ci",
+      "scripts/e2e",
+      "scripts/pages",
+      "scripts/release",
+      "settings.gradle.kts",
+      "site",
+      "stonecutter.gradle.kts"
+    ]
+  },
+  "build_adapter_api": 1,
+  "bundle": {
+    "path": "build/release"
+  },
+  "contexts": {
+    "build": "mod-base / Build and verify",
+    "packaged": "mod-base / Packaged E2E gate"
+  },
+  "inventory": {
+    "path": "release/release-matrix.json"
+  },
+  "kind": "mod-base.build.config",
+  "plan_inputs": [],
+  "profile": "block-pops",
+  "repository": "The-Plum-Team/MultiplayerSpawners",
+  "scenario_contract": {
+    "path": "e2e/scenario-contract.json"
+  },
+  "schema_version": 1,
+  "timeouts": {
+    "policy_seconds": 600,
+    "runtime_seconds": 1200,
+    "target_seconds": 3000,
+    "validator_seconds": 600
+  }
+}

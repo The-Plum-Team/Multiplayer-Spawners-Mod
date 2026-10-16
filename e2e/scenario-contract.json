@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "server-smoke",
+      "description": "A dedicated server of the lane's loader starts with the production jar, applies every mixin and writes the per-world config.",
+      "loaders": ["fabric", "forge", "neoforge"],
+      "checkpoints": ["started", "mixins", "config"]
+    }
+  ]
+}
