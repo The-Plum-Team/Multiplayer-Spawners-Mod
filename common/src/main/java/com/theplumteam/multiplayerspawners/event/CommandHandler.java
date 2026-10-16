@@ -18,6 +18,10 @@ import net.minecraft.world.level.block.SpawnerBlock;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
+//? if >=1.21.11 {
+import net.minecraft.server.permissions.Permissions;
+//?}
+
 import java.util.Set;
 
 public class CommandHandler {
@@ -38,23 +42,25 @@ public class CommandHandler {
      * This ensures settings persist after server restart/world reload.
      */
     private static void saveServerConfig() {
-        try {
-            // Check if the spec is loaded before attempting to save
-            if (ModConfig.SERVER_SPEC.isLoaded()) {
-                ModConfig.SERVER_SPEC.save();
-                Constants.debug("MultiplayerSpawners configuration successfully saved to disk.");
-            } else {
-                Constants.LOG.warn("Could not save configuration: Config spec not loaded.");
-            }
-        } catch (Exception e) {
-            Constants.LOG.error("Failed to save MultiplayerSpawners configuration", e);
-        }
+        ModConfig.saveServer();
+        Constants.debug("MultiplayerSpawners configuration saved to disk.");
+    }
+
+    /**
+     * Operators of level 2 (game masters), as vanilla's own world-changing commands require.
+     */
+    private static boolean isGamemaster(CommandSourceStack source) {
+        //? if >=1.21.11 {
+        return source.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER);
+        //?} else {
+        /*return source.hasPermission(2);
+        *///?}
     }
 
     public static void register(com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("multiplayerspawners")
                 .then(Commands.literal("toggle_placed_vanilla")
-                        .requires(source -> source.hasPermission(2))
+                        .requires(CommandHandler::isGamemaster)
                         .executes(context -> {
                             boolean current = ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
                             boolean newValue = !current;
@@ -84,7 +90,7 @@ public class CommandHandler {
                         })
                 )
                 .then(Commands.literal("set_break_attempts")
-                        .requires(source -> source.hasPermission(2)) // OP level 2
+                        .requires(CommandHandler::isGamemaster)
                         .then(Commands.argument("value", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 10))
                                 .executes(context -> {
                                     int newValue = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(context, "value");
@@ -109,7 +115,7 @@ public class CommandHandler {
                         )
                 )
                 .then(Commands.literal("toggle_break_message")
-                        .requires(source -> source.hasPermission(2)) // OP level 2
+                        .requires(CommandHandler::isGamemaster)
                         .executes(context -> {
                             boolean current = ModConfig.SERVER.allowSpawnerBreakMessage.get();
                             boolean newValue = !current;
@@ -146,8 +152,8 @@ public class CommandHandler {
                                                     // Security Check: Prevent manual command entry if feature is disabled
                                                     boolean isBreakAllowed = ModConfig.SERVER.allowSpawnerBreakMessage.get();
                                                     if (!isBreakAllowed && !player.isCreative()) {
-                                                        player.displayClientMessage(Component.literal("Breaking disabled spawners is currently prohibited on this server.")
-                                                                .withStyle(ChatFormatting.RED), false);
+                                                        player.sendSystemMessage(Component.literal("Breaking disabled spawners is currently prohibited on this server.")
+                                                                .withStyle(ChatFormatting.RED));
                                                         return 0;
                                                     }
 
@@ -156,25 +162,25 @@ public class CommandHandler {
                                                     int z = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(context, "z");
 
                                                     BlockPos pos = new BlockPos(x, y, z);
-                                                    Level world = player.serverLevel();
+                                                    Level world = player.level();
 
                                                     // Check if the spawner exists and is disabled for this player
                                                     if (!SpawnerStateManager.isSpawnerDisabledForPlayer(world, pos, player.getName().getString())) {
-                                                        player.displayClientMessage(Component.literal("That spawner is not disabled for you!").withStyle(ChatFormatting.RED), false);
+                                                        player.sendSystemMessage(Component.literal("That spawner is not disabled for you!").withStyle(ChatFormatting.RED));
                                                         return 0;
                                                     }
 
                                                     // Check if it's actually a spawner block
                                                     BlockState blockState = world.getBlockState(pos);
                                                     if (!(blockState.getBlock() instanceof SpawnerBlock)) {
-                                                        player.displayClientMessage(Component.literal("No spawner found at that location!").withStyle(ChatFormatting.RED), false);
+                                                        player.sendSystemMessage(Component.literal("No spawner found at that location!").withStyle(ChatFormatting.RED));
                                                         return 0;
                                                     }
 
                                                     // Break the spawner directly without dropping items/experience
                                                     world.destroyBlock(pos, false, player);
 
-                                                    player.displayClientMessage(Component.literal("Spawner successfully broken and removed!").withStyle(ChatFormatting.GREEN), false);
+                                                    player.sendSystemMessage(Component.literal("Spawner successfully broken and removed!").withStyle(ChatFormatting.GREEN));
                                                     Constants.debug("Player {} broke disabled spawner at {} via command", player.getName().getString(), pos);
 
                                                     return 1;
@@ -184,7 +190,7 @@ public class CommandHandler {
                         )
                 )
                 .then(Commands.literal("torch")
-                        .requires(source -> source.hasPermission(2)) // Require operator level
+                        .requires(CommandHandler::isGamemaster)
                         .then(Commands.literal("delay")
                                 .then(Commands.argument("seconds", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 300))
                                         .executes(context -> {

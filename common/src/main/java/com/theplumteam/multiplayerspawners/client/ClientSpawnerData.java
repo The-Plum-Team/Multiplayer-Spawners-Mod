@@ -121,7 +121,6 @@ public class ClientSpawnerData {
             // Forcefully notify the renderer that this block changed
             minecraft.level.sendBlockUpdated(pos, oldState, newState, 3);
             minecraft.level.setBlocksDirty(pos, oldState, newState);
-            minecraft.levelRenderer.setBlocksDirty(pos.getX(), pos.getY(), pos.getZ(), pos.getX(), pos.getY(), pos.getZ());
         } catch (Exception e) {
             // Ignore errors during rendering update
         }

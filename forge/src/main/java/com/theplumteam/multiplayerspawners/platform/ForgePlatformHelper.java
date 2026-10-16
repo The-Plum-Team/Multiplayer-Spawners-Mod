@@ -1,22 +1,19 @@
 package com.theplumteam.multiplayerspawners.platform;
 
 import com.theplumteam.multiplayerspawners.Constants;
-import com.theplumteam.multiplayerspawners.config.ForgeConfigRegistry;
 import com.theplumteam.multiplayerspawners.network.ForgeNetworkHandler;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
 import com.theplumteam.multiplayerspawners.platform.services.IPlatformHelper;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLLoader;
+import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.RegistryObject;
 
+import java.nio.file.Path;
 import java.util.function.Supplier;
 
 public class ForgePlatformHelper implements IPlatformHelper {
@@ -24,8 +21,7 @@ public class ForgePlatformHelper implements IPlatformHelper {
     private static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(Registries.BLOCK, Constants.MOD_ID);
     private static final DeferredRegister<Item> ITEMS = DeferredRegister.create(Registries.ITEM, Constants.MOD_ID);
 
-    public void register() {
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+    public static void register(IEventBus modEventBus) {
         BLOCKS.register(modEventBus);
         ITEMS.register(modEventBus);
     }
@@ -33,11 +29,6 @@ public class ForgePlatformHelper implements IPlatformHelper {
     @Override
     public String getPlatformName() {
         return "Forge";
-    }
-
-    @Override
-    public String getEnvironmentName() {
-        return FMLLoader.getNaming();
     }
 
     @Override
@@ -51,8 +42,8 @@ public class ForgePlatformHelper implements IPlatformHelper {
     }
 
     @Override
-    public <T> T get(Class<T> clazz) {
-        return null;
+    public Path getConfigDir() {
+        return FMLPaths.CONFIGDIR.get();
     }
 
     @Override
@@ -62,15 +53,9 @@ public class ForgePlatformHelper implements IPlatformHelper {
 
     @Override
     public <T extends Item> Supplier<T> registerItem(String name, Supplier<T> item) {
-        RegistryObject<T> registryObject = ITEMS.register(name, item);
-        return registryObject;
+        return ITEMS.register(name, item);
     }
 
-    @Override
-    public void initializeConfig() {
-        ForgeConfigRegistry.register();
-    }
-    
     @Override
     public NetworkHandler createNetworkHandler() {
         return new ForgeNetworkHandler();

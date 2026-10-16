@@ -1,18 +1,17 @@
 {
     "schemaVersion": 1,
-    "id": "multiplayerspawners",
+    "id": "${mod_id}",
     "version": "${version}",
     "name": "${mod_name}",
     "description": "${description}",
     "authors": [
-        "${mod_author}"
+        "${authors}"
     ],
     "contact": {
-        "homepage": "https://fabricmc.net/",
-        "sources": "https://github.com/FabricMC/fabric-example-mod"
+        "sources": "${sources}",
+        "issues": "${issues}"
     },
     "license": "${license}",
-    "icon": "assets/modid/${mod_id}.png",
     "environment": "*",
     "entrypoints": {
         "main": [
@@ -27,13 +26,9 @@
         "multiplayerspawners.fabric.mixins.json"
     ],
     "depends": {
-        "fabricloader": ">=0.14",
-        "fabric": "*",
-        "minecraft": "${minecraft_version}",
-        "java": ">=17",
-        "forgeconfigapiport": ">=8.0.1"
-    },
-    "suggests": {
-        "another-mod": "*"
+        "fabricloader": "${loader_requirement}",
+        "fabric-api": "*",
+        "minecraft": "${minecraft_requirement}",
+        "java": "${java_requirement}"
     }
 }

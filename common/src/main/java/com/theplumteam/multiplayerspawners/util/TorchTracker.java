@@ -18,7 +18,9 @@ import net.minecraft.world.level.block.WallTorchBlock;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
-import org.joml.Vector3f;
+//? if <1.21.2 {
+/*import org.joml.Vector3f;
+*///?}
 
 import java.util.Iterator;
 import java.util.Map;
@@ -50,6 +52,18 @@ public class TorchTracker {
             this.executeAtTick = executeAtTick;
             this.task = task;
         }
+    }
+
+    /**
+     * A dust particle of the given colour (components 0-1) and size.
+     */
+    private static DustParticleOptions dust(float red, float green, float blue, float scale) {
+        //? if >=1.21.2 {
+        int rgb = (Math.round(red * 255) << 16) | (Math.round(green * 255) << 8) | Math.round(blue * 255);
+        return new DustParticleOptions(rgb, scale);
+        //?} else {
+        /*return new DustParticleOptions(new Vector3f(red, green, blue), scale);
+        *///?}
     }
 
     /**
@@ -222,7 +236,7 @@ public class TorchTracker {
 
             ServerLevel level = server.getLevel(dimensionKey);
             if (level == null) {
-                Constants.debug("Level is null for dimension {}, skipping torch checks.", dimensionKey.location());
+                Constants.debug("Level is null for dimension {}, skipping torch checks.", dimensionKey);
                 continue;
             }
 
@@ -336,8 +350,8 @@ public class TorchTracker {
         int particleCount = (int)(distance / PARTICLE_STEP_SIZE);
 
         // Create small dark particles - wither-like colors
-        DustParticleOptions darkWitherDust = new DustParticleOptions(new Vector3f(0.05f, 0.05f, 0.1f), 0.2f * 3); // Very dark with blue tint
-        DustParticleOptions tinyBlackDust = new DustParticleOptions(new Vector3f(0.02f, 0.02f, 0.02f), 0.15f * 3); // Almost black, tiny
+        DustParticleOptions darkWitherDust = dust(0.05f, 0.05f, 0.1f, 0.2f * 3); // Very dark with blue tint
+        DustParticleOptions tinyBlackDust = dust(0.02f, 0.02f, 0.02f, 0.15f * 3); // Almost black, tiny
 
         // Create the particle beam over very few ticks for super fast movement
         for (int tick = 0; tick < PARTICLE_BEAM_DURATION_TICKS; tick += 1) {
@@ -383,8 +397,8 @@ public class TorchTracker {
         Vec3 torchTip = getTorchTipPosition(pos, oldState); // Use precise torch tip position
 
         // Create small dark particles for dark magic impact
-        DustParticleOptions darkMagicDust = new DustParticleOptions(new Vector3f(0.1f, 0.02f, 0.15f), 0.25f); // Dark purple
-        DustParticleOptions smallBlackDust = new DustParticleOptions(new Vector3f(0.02f, 0.02f, 0.02f), 0.2f); // Almost black
+        DustParticleOptions darkMagicDust = dust(0.1f, 0.02f, 0.15f, 0.25f); // Dark purple
+        DustParticleOptions smallBlackDust = dust(0.02f, 0.02f, 0.02f, 0.2f); // Almost black
 
         // Dark magic impact particles at the precise torch tip
         level.sendParticles(darkMagicDust, torchTip.x, torchTip.y, torchTip.z, 6, 0.02, 0.02, 0.02, 0.0);

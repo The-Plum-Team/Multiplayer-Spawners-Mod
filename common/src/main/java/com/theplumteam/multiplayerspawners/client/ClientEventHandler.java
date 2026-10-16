@@ -16,8 +16,8 @@ public class ClientEventHandler {
      * Called when a chunk is loaded on the client
      */
     public static void onChunkLoad(LevelChunk chunk) {
-        Constants.debug("CLIENT: Chunk loaded at {}, {} - checking for pending spawner updates", chunk.getPos().x, chunk.getPos().z);
-        ClientSpawnerData.onChunkLoaded(chunk.getPos().x, chunk.getPos().z);
+        Constants.debug("CLIENT: Chunk loaded at {} - checking for pending spawner updates", chunk.getPos());
+        ClientSpawnerData.onChunkLoaded(chunk.getPos().getMinBlockX() >> 4, chunk.getPos().getMinBlockZ() >> 4);
     }
 
     /**
@@ -25,7 +25,7 @@ public class ClientEventHandler {
      */
     public static void onChunkUnload(LevelChunk chunk) {
         // Cleanup is handled automatically by the optimized system
-        Constants.LOG.trace("CLIENT: Chunk unloaded at {}, {}", chunk.getPos().x, chunk.getPos().z);
+        Constants.LOG.trace("CLIENT: Chunk unloaded at {}", chunk.getPos());
     }
 
     /**
@@ -38,7 +38,7 @@ public class ClientEventHandler {
         }
 
         // Check for dimension changes
-        String currentDimension = minecraft.level.dimension().location().toString();
+        String currentDimension = minecraft.level.dimension().toString();
         if (lastDimension == null) {
             lastDimension = currentDimension;
         } else if (!lastDimension.equals(currentDimension)) {
