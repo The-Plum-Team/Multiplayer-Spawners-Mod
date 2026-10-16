@@ -234,10 +234,7 @@ class Server:
             # Keep what every thread was doing before killing the server: the dump decides
             # whether the mod is what kept it alive (see stopped_cleanly).
             dump = self.work / f"server-{self.starts}-threads.txt"
-            jstack = Path(self.java).with_name("jstack")
-            with dump.open("w", encoding="utf-8") as out:
-                subprocess.run([str(jstack), str(self.process.pid)], stdout=out, stderr=subprocess.STDOUT,
-                               timeout=60, check=False)
+            server_smoke.thread_dump(self.java, self.process.pid, dump)
             self.stuck_dumps.append(dump)
             self.last_stop_stuck = True
             os.killpg(self.process.pid, signal.SIGKILL)
@@ -246,22 +243,12 @@ class Server:
         return self.process.returncode
 
     def stopped_cleanly(self, code: int | None) -> str | None:
-        """None when the last stop was clean, else what went wrong.
+        """None when the last stop was clean, else what went wrong (server_smoke.stop_problem)."""
 
-        A clean stop exits with 0. On a loaded machine a server sometimes saves everything and
-        then never exits; that counts as clean only when the log shows the complete save and no
-        thread of the mod is in the dump taken before it was killed."""
-
-        if code == 0:
-            return None
         log = (self.work / f"server-{self.starts}.log").read_text(encoding="utf-8", errors="replace")
-        saved = "All dimensions are saved" in log
-        dump = self.stuck_dumps[-1].read_text(encoding="utf-8", errors="replace") if self.last_stop_stuck else ""
-        if saved and dump and MOD_ID not in dump.lower():
-            return None
-        return (f"the server exited with {code} when stopped"
-                + ("" if saved else " before saving the world")
-                + (f" and a thread of the mod kept it alive ({self.stuck_dumps[-1].name})" if MOD_ID in dump.lower() else ""))
+        dump = self.stuck_dumps[-1].read_text(encoding="utf-8", errors="replace") if self.last_stop_stuck else None
+        problem = server_smoke.stop_problem(code, log, dump)
+        return f"the {problem} when stopped" if problem else None
 
 
 # --------------------------------------------------------------------------------------------
@@ -609,6 +596,12 @@ class Lane:
         self.run(f"tp @e[tag={SPAWNED_TAG}] 0 -500 0")
         self.run("kill @e[type=minecraft:item]")
 
+    def clear_spot(self, block: tuple[int, int, int]) -> None:
+        """Remove any mob from where a player is about to place a block: a block is never placed on one."""
+
+        x, y, z = block
+        self.run(f"kill @e[type=!minecraft:player,x={x + 0.5},y={y + 0.5},z={z + 0.5},distance=..3]")
+
     def hold(self, player: str, item: str) -> None:
         answer = self.run(f"item replace entity {player} hotbar.0 with {item}")
         self.check("Replaced" in answer, f"could not give {player} {item}: {answer}")
@@ -702,14 +695,17 @@ class Lane:
     def step_joined(self) -> None:
         self.server.start()
         self.run("time set 6000")
-        for rule in ("doDaylightCycle false", "advance_time false"):
+        # 26.1 renamed the rules; the name a version does not know is refused and changes nothing.
+        for rule in ("doDaylightCycle false", "advance_time false", "doMobSpawning false", "spawn_mobs false"):
             self.run(f"gamerule {rule}")
-        self.run("kill @e[type=!minecraft:player]")
         # Keep the scenario's chunks loaded with nobody near (from 1.21.9 there are no spawn
         # chunks). The world saves this, so after a restart they are read back from disk at once.
         answer = self.run(f"forceload add {PLACED[0] - 16} 0 {S2[0] + 16} 16")
         self.check("forceload" in answer.lower() or "marked" in answer.lower() or "chunk" in answer.lower(),
                    f"could not keep the scenario's chunks loaded: {answer}")
+        # The animals generated with those chunks would stand in views and on placement spots.
+        time.sleep(2)
+        self.run("kill @e[type=!minecraft:player]")
         self.join_all()
 
     def step_initial_view(self) -> None:
@@ -839,6 +835,7 @@ class Lane:
         self.park("Carol", S2)
         x, y, z = TORCH
         self.hold("Alice", "minecraft:torch")
+        self.clear_spot(TORCH)
         self.look("Alice", (x + 0.5, y - 1, z + 0.5), (x + 0.5, FEET, z + 0.5))
         time.sleep(1.5)
         self.clients["Alice"].right_click()
@@ -855,6 +852,7 @@ class Lane:
     def step_player_placed(self) -> None:
         x, y, z = PLACED
         self.hold("Alice", "minecraft:spawner")
+        self.clear_spot(PLACED)
         stand = (x + 0.5, FEET, z + 0.5 - 2)
         self.look("Alice", (x + 0.5, y, z + 0.5), stand)
         time.sleep(1.5)
