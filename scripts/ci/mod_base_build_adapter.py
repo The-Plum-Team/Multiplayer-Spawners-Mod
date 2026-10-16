@@ -135,9 +135,13 @@ def parse_inventory(data: bytes) -> dict[str, Any]:
 
 
 def parse_contract(data: bytes) -> dict[str, Any]:
-    """The scenario contract: every scenario, the loaders it runs on and its checkpoints."""
+    """The scenario contract: every scenario, the loaders it runs on and its checkpoints.
 
-    contract = _object(decode(data, "scenario contract"), ("schema_version", "scenarios"), "scenario contract")
+    Its ``evidence`` section (the multiplayer captures that the Pages adapter publishes) is not an
+    obligation of the Build gate and is left to that adapter."""
+
+    contract = _object(decode(data, "scenario contract"), ("schema_version", "scenarios"), "scenario contract",
+                       optional=("evidence",))
     if type(contract["schema_version"]) is not int or contract["schema_version"] != 1:
         raise AdapterError("scenario contract schema_version must be 1")
     scenarios = contract["scenarios"]

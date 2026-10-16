@@ -7,5 +7,74 @@
       "loaders": ["fabric", "forge", "neoforge"],
       "checkpoints": ["started", "mixins", "config"]
     }
-  ]
+  ],
+  "evidence": {
+    "profile": "multiplayer",
+    "scenarios": [
+      {
+        "id": "multiplayer",
+        "title": "Three players on a dedicated server",
+        "roles": [
+          {
+            "role": "alice",
+            "steps": [
+              {"id": "s1_initial",
+               "capture": {"title": "Alice meets the dungeon spawner", "review_tier": "key",
+                           "expectation": "Alice sees the untouched spawner active: the mod's golden spawner, with its mob spinning inside."}},
+              {"id": "s1_disabled",
+               "capture": {"title": "Alice disabled it for herself", "review_tier": "key",
+                           "expectation": "After Alice's hit the spawner is disabled for her: the vanilla spawner with no mob inside, and the chat says it was disabled for one nearby player."}},
+              {"id": "s1_rejoined",
+               "capture": {"title": "Still disabled for Alice after a restart", "review_tier": "all",
+                           "expectation": "After the server restarts and Alice joins again, the spawner she disabled is still the vanilla one for her."}},
+              {"id": "s2_rejoined",
+               "capture": {"title": "Carol's spawner stays active for Alice", "review_tier": "all",
+                           "expectation": "The spawner only Carol disabled is still the golden, active spawner for Alice after the rejoin."}},
+              {"id": "torch_out",
+               "capture": {"title": "A torch next to a spawner goes out", "review_tier": "key",
+                           "expectation": "The torch Alice placed two blocks from a spawner has been put out: an unlit torch stands where she placed it."}}
+            ],
+            "comparisons": [
+              {"id": "s1_view_changed", "first": "s1_initial", "second": "s1_disabled", "minimum_changed_fraction": 0.01}
+            ]
+          },
+          {
+            "role": "bob",
+            "steps": [
+              {"id": "s1_initial",
+               "capture": {"title": "Bob meets the dungeon spawner", "review_tier": "all",
+                           "expectation": "Bob sees the untouched spawner active from the other side: the golden spawner with its mob inside."}},
+              {"id": "s1_disabled",
+               "capture": {"title": "Alice's hit disabled it for Bob too", "review_tier": "key",
+                           "expectation": "Bob stood within the group radius when Alice hit the spawner, so it is disabled for him as well: the vanilla spawner, and the chat says Alice disabled a spawner in this area."}},
+              {"id": "break_link",
+               "capture": {"title": "The chat link that breaks it", "review_tier": "key",
+                           "expectation": "Bob's open chat shows the message that the spawner is disabled for him with the red [Click here to break it] link, which he then clicks to remove the spawner."}}
+            ],
+            "comparisons": []
+          },
+          {
+            "role": "carol",
+            "steps": [
+              {"id": "s2_initial",
+               "capture": {"title": "Carol meets her own spawner", "review_tier": "all",
+                           "expectation": "Carol, far from the others, sees her own untouched spawner active: the golden spawner with its mob inside."}},
+              {"id": "s1_active",
+               "capture": {"title": "Still active for Carol", "review_tier": "key",
+                           "expectation": "The spawner Alice and Bob disabled is still active for Carol, who was out of the group radius: the golden spawner with its mob inside, while Alice and Bob stand beside it."}},
+              {"id": "s1_disabled",
+               "capture": {"title": "Carol disabled it too", "review_tier": "all",
+                           "expectation": "After Carol hits the spawner the others disabled, it is disabled for her as well: the vanilla spawner with no mob inside."}},
+              {"id": "s2_rejoined",
+               "capture": {"title": "Carol's spawner after a restart", "review_tier": "all",
+                           "expectation": "After the restart and rejoin, the spawner Carol disabled on her own is still the vanilla spawner for her."}}
+            ],
+            "comparisons": [
+              {"id": "s1_view_changed", "first": "s1_active", "second": "s1_disabled", "minimum_changed_fraction": 0.01}
+            ]
+          }
+        ]
+      }
+    ]
+  }
 }

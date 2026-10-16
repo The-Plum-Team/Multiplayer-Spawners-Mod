@@ -26,10 +26,18 @@ The scenario, in the order it runs (each checkpoint fails the lane on its own):
   torch             a torch Alice places next to a spawner is put out
   player-placed     a spawner Alice places is treated as vanilla and breaks normally
   stopped           the server stops cleanly and nothing logged an error from the mod
+  evidence          every capture e2e/scenario-contract.json declares was taken by a passed check
 
-Screenshots of what each player sees are written next to the logs as evidence. The visual checks
-classify the spawner in the middle of the screen: the mod draws an active spawner with its own
-golden texture and a disabled one with the vanilla texture.
+Screenshots of what each player sees are written next to the logs. The visual checks classify the
+spawner in the middle of the screen: the mod draws an active spawner with its own golden texture
+and a disabled one with the vanilla texture.
+
+The captures that the project site publishes are declared in the "evidence" section of
+e2e/scenario-contract.json (roles and steps). When every checkpoint passes, each lane writes them
+for the mod-base Pages adapter (scripts/pages/mod_base_adapter.py) below <work-dir>/evidence:
+
+  runs/<artifact node>/multiplayer/report.json      the lane, its jar and each step's message
+  runs/<artifact node>/multiplayer/<role>/<step>.png
 
     python3 scripts/e2e/multiplayer.py fabric-1.21.1
     python3 scripts/e2e/multiplayer.py --minecraft 1.20.1
@@ -44,6 +52,7 @@ Build the jars first (scripts/release/build_matrix.py). Everything goes below --
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -72,7 +81,7 @@ RCON_PASSWORD = "multiplayerspawners-e2e"
 
 CHECKPOINTS = ("joined", "initial-view", "spawns", "group-disable", "per-player-view", "suppressed",
                "active-for-others", "break-message", "joined-disable", "persistence", "join-sync",
-               "break-link", "torch", "player-placed", "stopped")
+               "break-link", "torch", "player-placed", "stopped", "evidence")
 
 # The world is a flat world: the ground is the grass block layer at y=-61, players stand at y=-60.
 FEET = -60
@@ -82,6 +91,8 @@ S2 = (40, FEET, 10)      # Carol's own spawner, far from the others
 PLACED = (-30, FEET, 10)  # where Alice places a spawner herself
 TORCH = (42, FEET, 12)   # within the 7 blocks of S2 that put a torch out
 SPAWNED_TAG = "mps_e2e"
+CONTRACT = ROOT / "e2e" / "scenario-contract.json"
+EVIDENCE_SCENARIO = "multiplayer"
 
 
 class ScenarioFailure(Exception):
@@ -513,6 +524,11 @@ class Lane:
         self.clients = {name: Client(name, self.work, mods, self.minecraft, vid, self.java) for name in PLAYERS}
         self.results: dict[str, list[str]] = {}
         self.notes: list[str] = []
+        self.captures: dict[tuple[str, str], tuple[Path, str]] = {}
+        self.evidence = work / "evidence" / "runs" / self.node / EVIDENCE_SCENARIO
+        if self.evidence.exists():
+            shutil.rmtree(self.evidence)
+        self.started = time.monotonic()
 
     # -- helpers -------------------------------------------------------------------------------
 
@@ -627,14 +643,27 @@ class Lane:
         time.sleep(2.5)
         return warm_fraction(self.clients[player].screenshot(name))
 
+    def capture(self, player: str, step: str, name: str, message: str) -> None:
+        """Record screenshots/<name>.png as the contract capture <player>/<step>, with the message of
+        the check it passed."""
+
+        self.captures[(player.lower(), step)] = (self.work / "screenshots" / f"{name}.png", message)
+
     def expect_view(self, player: str, block: tuple[int, int, int], offset: tuple[float, float], name: str,
-                    active: bool) -> None:
+                    active: bool, capture: str | None = None, context: str = "") -> None:
         # The view changes a few frames after the packet; retry for a while before failing.
         deadline = time.monotonic() + 15
         while True:
             warm = self.view(player, block, offset, name)
             if (warm >= ACTIVE_MIN) if active else (warm <= DISABLED_MAX):
                 self.notes.append(f"{name}: golden share {warm:.3f}")
+                if capture:
+                    state, bound = (("active", f"at least {ACTIVE_MIN:.0%}") if active
+                                    else ("disabled", f"at most {DISABLED_MAX:.0%}"))
+                    self.capture(player, capture, name,
+                                 f"{player} sees the spawner at {block[0]} {block[1]} {block[2]} {state}"
+                                 f"{context}: {warm:.1%} of the pixels around the crosshair are the mod's golden "
+                                 f"active texture ({bound} required).")
                 return
             if time.monotonic() > deadline:
                 state = "active (golden)" if active else "disabled (vanilla)"
@@ -688,8 +717,10 @@ class Lane:
         self.place_spawner(S2)
         self.park("Carol", S1)
         for player, offset in (("Alice", (0, -3)), ("Bob", (0, 3))):
-            self.expect_view(player, S1, offset, f"01-{player.lower()}-s1-initial", active=True)
-        self.expect_view("Carol", S2, (0, -3), "01-carol-s2-initial", active=True)
+            self.expect_view(player, S1, offset, f"01-{player.lower()}-s1-initial", active=True,
+                             capture="s1_initial", context=" before anyone hit it")
+        self.expect_view("Carol", S2, (0, -3), "01-carol-s2-initial", active=True,
+                         capture="s2_initial", context=" before anyone hit it")
         self.park("Carol", S1)
 
     def step_spawns(self) -> None:
@@ -711,9 +742,12 @@ class Lane:
                    "the first hit already showed the break message (requiredBreakAttempts is 2)")
 
     def step_per_player_view(self) -> None:
-        self.expect_view("Alice", S1, (0, -3), "02-alice-s1-disabled", active=False)
-        self.expect_view("Bob", S1, (0, 3), "02-bob-s1-disabled", active=False)
-        self.expect_view("Carol", S1, (3, 0), "02-carol-s1-active", active=True)
+        self.expect_view("Alice", S1, (0, -3), "02-alice-s1-disabled", active=False, capture="s1_disabled",
+                         context=" after her own hit (the server lists Alice and Bob as having disabled it)")
+        self.expect_view("Bob", S1, (0, 3), "02-bob-s1-disabled", active=False, capture="s1_disabled",
+                         context=" after Alice's hit within the group radius")
+        self.expect_view("Carol", S1, (3, 0), "02-carol-s1-active", active=True, capture="s1_active",
+                         context=" that Alice and Bob disabled, since she was out of the group radius")
         self.park("Carol", S1)
 
     def step_suppressed(self) -> None:
@@ -749,7 +783,8 @@ class Lane:
         self.wait_for("Carol in S1's DisabledPlayers",
                       lambda: self.disabled_players(S1) == {"Alice", "Bob", "Carol"}, 10)
         self.expect_chat("Carol", "It will no longer spawn creatures while you are nearby.", carol)
-        self.expect_view("Carol", S1, (3, 0), "03-carol-s1-disabled", active=False)
+        self.expect_view("Carol", S1, (3, 0), "03-carol-s1-disabled", active=False, capture="s1_disabled",
+                         context=" after her own hit on a spawner others disabled")
 
     def step_persistence(self) -> None:
         for client in self.clients.values():
@@ -769,9 +804,12 @@ class Lane:
         self.run("time set 6000")
         self.join_all()
         self.park("Carol", S1)
-        self.expect_view("Alice", S1, (0, -3), "04-alice-s1-rejoined", active=False)
-        self.expect_view("Alice", S2, (0, -3), "04-alice-s2-rejoined", active=True)
-        self.expect_view("Carol", S2, (3, 0), "04-carol-s2-rejoined", active=False)
+        self.expect_view("Alice", S1, (0, -3), "04-alice-s1-rejoined", active=False, capture="s1_rejoined",
+                         context=" after a server restart and rejoin")
+        self.expect_view("Alice", S2, (0, -3), "04-alice-s2-rejoined", active=True, capture="s2_rejoined",
+                         context=" (only Carol disabled it) after a server restart and rejoin")
+        self.expect_view("Carol", S2, (3, 0), "04-carol-s2-rejoined", active=False, capture="s2_rejoined",
+                         context=" (she disabled it) after a server restart and rejoin")
 
     def step_break_link(self) -> None:
         bob = len(self.clients["Bob"].chat())
@@ -791,6 +829,9 @@ class Lane:
         self.wait_for("the spawner to be removed", lambda: self.block_is(S1, "minecraft:air"), 10)
         self.expect_chat("Bob", "Spawner successfully broken and removed!", bob)
         client.xdotool("key", "Escape")
+        self.capture("Bob", "break_link", "05-bob-chat-open",
+                     f"Bob's open chat shows the red break link at {position[0]},{position[1]}; clicking it removed "
+                     f"the spawner at {S1[0]} {S1[1]} {S1[2]} and the chat said: Spawner successfully broken and removed!")
 
     def step_torch(self) -> None:
         answer = self.run(f"{MOD_ID} torch delay 3")
@@ -806,6 +847,10 @@ class Lane:
         self.look_at_block("Alice", TORCH, (0, -2))
         time.sleep(2)
         self.clients["Alice"].screenshot("06-alice-torch-out")
+        distance = math.dist((x, z), (S2[0], S2[2]))
+        self.capture("Alice", "torch_out", "06-alice-torch-out",
+                     f"The torch Alice placed at {x} {y} {z}, {distance:.1f} blocks from the spawner at {S2[0]} {S2[1]} "
+                     f"{S2[2]}, became {MOD_ID}:unlit_torch after the 3-second delay.")
 
     def step_player_placed(self) -> None:
         x, y, z = PLACED
@@ -840,6 +885,35 @@ class Lane:
                 self.check(not errors, f"{client.name}'s game logged errors from the mod: " + " | ".join(errors[:3]))
                 self.check("Mixin apply failed" not in text and "MixinApplyError" not in text,
                            f"a mixin failed in {client.name}'s game ({path.name})")
+
+    def step_evidence(self) -> None:
+        """Write the captures the contract declares, with their messages, for the Pages adapter."""
+
+        contract_bytes = CONTRACT.read_bytes()
+        scenario = next(item for item in json.loads(contract_bytes)["evidence"]["scenarios"]
+                        if item["id"] == EVIDENCE_SCENARIO)
+        roles = {}
+        for role in scenario["roles"]:
+            steps = []
+            for step in role["steps"]:
+                captured = self.captures.get((role["role"], step["id"]))
+                self.check(captured is not None, f"no passed check took the capture {role['role']}/{step['id']}")
+                source, message = captured
+                target = self.evidence / role["role"] / f"{step['id']}.png"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, target)
+                steps.append({"id": step["id"], "status": "pass", "message": message,
+                              "screenshot": f"{role['role']}/{step['id']}.png"})
+            roles[role["role"]] = {"steps": steps}
+        report = {
+            "kind": "multiplayerspawners.e2e.report", "schema_version": 1, "status": "pass",
+            "artifact_node": self.node, "minecraft": self.artifact["minecraft"], "loader": self.artifact["loader"],
+            "java": self.artifact["java"], "scenario": EVIDENCE_SCENARIO,
+            "contract_sha256": hashlib.sha256(contract_bytes).hexdigest(),
+            "production_sha256": hashlib.sha256(self.jar.read_bytes()).hexdigest(),
+            "elapsed_s": round(time.monotonic() - self.started), "roles": roles,
+        }
+        (self.evidence / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
 
     def play(self) -> dict[str, list[str]]:
         try:
