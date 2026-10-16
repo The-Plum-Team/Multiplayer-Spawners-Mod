@@ -1,7 +1,13 @@
 package com.theplumteam.multiplayerspawners.network;
 
+import com.theplumteam.multiplayerspawners.Constants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
+//? if >=1.21 {
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+//?}
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -9,45 +15,41 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Batched packet sent from server to client to sync spawner disabled states.
- * Now supports multiple spawner updates in a single network call.
+ * Server-to-client sync of which players disabled each spawner, batched per chunk.
+ * The wire format is the same on every loader and version.
  */
-public class SpawnerStatePacket {
+public record SpawnerStatePacket(List<SpawnerUpdate> updates, boolean isFullSync)
+        //? if >=1.21 {
+        implements CustomPacketPayload
+        //?}
+{
 
-    private final List<SpawnerUpdate> updates;
-    private final boolean isFullSync;
+    public static final ResourceLocation ID = Constants.id("spawner_state");
 
-    // Inner class to represent a single spawner's state
-    public static class SpawnerUpdate {
-        public final BlockPos pos;
-        public final Set<String> disabledPlayers;
-        public final boolean treatedAsVanilla;
+    //? if >=1.21 {
+    public static final CustomPacketPayload.Type<SpawnerStatePacket> TYPE = new CustomPacketPayload.Type<>(ID);
+    public static final StreamCodec<FriendlyByteBuf, SpawnerStatePacket> STREAM_CODEC =
+            StreamCodec.of((buf, packet) -> packet.write(buf), SpawnerStatePacket::read);
 
-        public SpawnerUpdate(BlockPos pos, Set<String> disabledPlayers, boolean treatedAsVanilla) {
-            this.pos = pos;
-            this.disabledPlayers = disabledPlayers;
-            this.treatedAsVanilla = treatedAsVanilla;
-        }
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+    //?}
+
+    public record SpawnerUpdate(BlockPos pos, Set<String> disabledPlayers, boolean treatedAsVanilla) {
     }
 
-    // Constructor for a single update (convenience)
-    public SpawnerStatePacket(BlockPos pos, Set<String> disabledPlayers, boolean isFullSync, boolean treatedAsVanilla) {
-        this.updates = new ArrayList<>();
-        this.updates.add(new SpawnerUpdate(pos, new HashSet<>(disabledPlayers), treatedAsVanilla));
-        this.isFullSync = isFullSync;
+    public static SpawnerStatePacket single(BlockPos pos, Set<String> disabledPlayers, boolean isFullSync, boolean treatedAsVanilla) {
+        List<SpawnerUpdate> updates = new ArrayList<>(1);
+        updates.add(new SpawnerUpdate(pos, new HashSet<>(disabledPlayers), treatedAsVanilla));
+        return new SpawnerStatePacket(updates, isFullSync);
     }
 
-    // Constructor for batched updates
-    public SpawnerStatePacket(List<SpawnerUpdate> updates, boolean isFullSync) {
-        this.updates = updates;
-        this.isFullSync = isFullSync;
-    }
-
-    public SpawnerStatePacket(FriendlyByteBuf buf) {
-        this.isFullSync = buf.readBoolean();
+    public static SpawnerStatePacket read(FriendlyByteBuf buf) {
+        boolean isFullSync = buf.readBoolean();
         int updateCount = buf.readVarInt();
-        this.updates = new ArrayList<>(updateCount);
-
+        List<SpawnerUpdate> updates = new ArrayList<>(updateCount);
         for (int i = 0; i < updateCount; i++) {
             BlockPos pos = buf.readBlockPos();
             boolean treatedAsVanilla = buf.readBoolean();
@@ -56,29 +58,21 @@ public class SpawnerStatePacket {
             for (int p = 0; p < playerCount; p++) {
                 disabledPlayers.add(buf.readUtf());
             }
-            this.updates.add(new SpawnerUpdate(pos, disabledPlayers, treatedAsVanilla));
+            updates.add(new SpawnerUpdate(pos, disabledPlayers, treatedAsVanilla));
         }
+        return new SpawnerStatePacket(updates, isFullSync);
     }
 
     public void write(FriendlyByteBuf buf) {
         buf.writeBoolean(isFullSync);
         buf.writeVarInt(updates.size());
-
         for (SpawnerUpdate update : updates) {
-            buf.writeBlockPos(update.pos);
-            buf.writeBoolean(update.treatedAsVanilla);
-            buf.writeVarInt(update.disabledPlayers.size());
-            for (String playerName : update.disabledPlayers) {
+            buf.writeBlockPos(update.pos());
+            buf.writeBoolean(update.treatedAsVanilla());
+            buf.writeVarInt(update.disabledPlayers().size());
+            for (String playerName : update.disabledPlayers()) {
                 buf.writeUtf(playerName);
             }
         }
-    }
-
-    public List<SpawnerUpdate> getUpdates() {
-        return updates;
-    }
-
-    public boolean isFullSync() {
-        return isFullSync;
     }
 }

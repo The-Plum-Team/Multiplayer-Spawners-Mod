@@ -1,6 +1,7 @@
 package com.theplumteam.multiplayerspawners;
 
 import com.theplumteam.multiplayerspawners.config.ModConfig;
+import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,7 +10,12 @@ public class Constants {
 	public static final String MOD_NAME = "MultiplayerSpawners";
 	public static final Logger LOG = LoggerFactory.getLogger(MOD_NAME);
 
-	public static void init() {
+	public static ResourceLocation id(String path) {
+		//? if >=1.21 {
+		return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
+		//?} else {
+		/*return new ResourceLocation(MOD_ID, path);
+		*///?}
 	}
 
 	public static void debug(String message, Object... args) {
@@ -19,6 +25,6 @@ public class Constants {
 	}
 
 	public static void logTorchMechanics(String message, Object... args) {
-		LOG.info("[TORCH] " + message, args);
+		debug("[TORCH] " + message, args);
 	}
 }

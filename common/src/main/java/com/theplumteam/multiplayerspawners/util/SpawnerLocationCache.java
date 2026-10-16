@@ -88,6 +88,6 @@ public class SpawnerLocationCache {
             throw new RuntimeException("Failed to access ChunkMap#getChunks via reflection", e);
         }
 
-        Constants.debug("Populated spawner cache for dimension {}: found {} spawners", dimension.location(), positions.size());
+        Constants.debug("Populated spawner cache for dimension {}: found {} spawners", dimension, positions.size());
     }
 }

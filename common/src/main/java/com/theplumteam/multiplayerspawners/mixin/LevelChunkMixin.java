@@ -16,17 +16,19 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import javax.annotation.Nullable;
-
 @Mixin(LevelChunk.class)
 public abstract class LevelChunkMixin {
 
     @Shadow
     public abstract Level getLevel();
 
+    //? if >=1.21.5 {
     @Shadow
-    @Nullable
-    public abstract BlockState setBlockState(BlockPos pos, BlockState state, boolean isMoving);
+    public abstract BlockState setBlockState(BlockPos pos, BlockState state, int flags);
+    //?} else {
+    /*@Shadow
+    public abstract BlockState setBlockState(BlockPos pos, BlockState state, boolean flags);
+    *///?}
 
     /**
      * ENFORCER: This injection acts as a firewall.
@@ -35,7 +37,11 @@ public abstract class LevelChunkMixin {
      * says it should be "Inactive" (Vanilla/Disabled), we FORCE the state to match our data.
      */
     @Inject(method = "setBlockState", at = @At("HEAD"), cancellable = true)
-    private void multiplayerspawners$enforceVisualState(BlockPos pos, BlockState state, boolean isMoving, CallbackInfoReturnable<BlockState> cir) {
+    //? if >=1.21.5 {
+    private void multiplayerspawners$enforceVisualState(BlockPos pos, BlockState state, int flags, CallbackInfoReturnable<BlockState> cir) {
+    //?} else {
+    /*private void multiplayerspawners$enforceVisualState(BlockPos pos, BlockState state, boolean flags, CallbackInfoReturnable<BlockState> cir) {
+    *///?}
         // Only run on client side
         if (this.getLevel().isClientSide()) {
             // Check if we are dealing with a spawner block that has our property
@@ -65,14 +71,18 @@ public abstract class LevelChunkMixin {
 
                     // Call the method again with the fixed state.
                     // Since fixedState matches the condition now, this recursive call will skip this 'if' block and proceed normally.
-                    cir.setReturnValue(this.setBlockState(pos, fixedState, isMoving));
+                    cir.setReturnValue(this.setBlockState(pos, fixedState, flags));
                 }
             }
         }
     }
 
     @Inject(method = "setBlockState", at = @At("RETURN"))
-    private void multiplayerspawners$onSetBlockState(BlockPos pos, BlockState state, boolean isMoving, CallbackInfoReturnable<BlockState> cir) {
+    //? if >=1.21.5 {
+    private void multiplayerspawners$onSetBlockState(BlockPos pos, BlockState state, int flags, CallbackInfoReturnable<BlockState> cir) {
+    //?} else {
+    /*private void multiplayerspawners$onSetBlockState(BlockPos pos, BlockState state, boolean flags, CallbackInfoReturnable<BlockState> cir) {
+    *///?}
         Level level = this.getLevel();
         if (level.isClientSide() || cir.getReturnValue() == null) {
             return;

@@ -115,10 +115,8 @@ public abstract class ServerPlayerGameModeMixin {
                 if (!SpawnerStateManager.isSpawnerDisabledForPlayer(level, spawnerPos, nearbyPlayerName)) {
                     SpawnerStateManager.disableSpawnerForPlayer(level, spawnerPos, nearbyPlayerName);
                     playersAffected++;
-                    serverPlayer.displayClientMessage(
-                            Component.literal("A spawner in this area has been disabled by " + triggeringPlayer.getName().getString() + ".").withStyle(ChatFormatting.GOLD),
-                            false
-                    );
+                    serverPlayer.sendSystemMessage(
+                            Component.literal("A spawner in this area has been disabled by " + triggeringPlayer.getName().getString() + ".").withStyle(ChatFormatting.GOLD));
                 }
             }
         }
@@ -130,10 +128,8 @@ public abstract class ServerPlayerGameModeMixin {
                     && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
 
             NetworkHandler.getInstance().sendSpawnerStateToTracking(level, spawnerPos, disabledPlayers, treatedAsVanilla);
-            triggeringPlayer.displayClientMessage(
-                    Component.literal("Group disabling: Spawner disabled for " + playersAffected + " nearby player(s).").withStyle(ChatFormatting.GOLD),
-                    false
-            );
+            triggeringPlayer.sendSystemMessage(
+                    Component.literal("Group disabling: Spawner disabled for " + playersAffected + " nearby player(s).").withStyle(ChatFormatting.GOLD));
         }
     }
 
@@ -162,6 +158,24 @@ public abstract class ServerPlayerGameModeMixin {
     }
 
     @Unique
+    private static ClickEvent multiplayerspawners$runCommand(String command) {
+        //? if >=1.21.5 {
+        return new ClickEvent.RunCommand(command);
+        //?} else {
+        /*return new ClickEvent(ClickEvent.Action.RUN_COMMAND, command);
+        *///?}
+    }
+
+    @Unique
+    private static HoverEvent multiplayerspawners$showText(Component text) {
+        //? if >=1.21.5 {
+        return new HoverEvent.ShowText(text);
+        //?} else {
+        /*return new HoverEvent(HoverEvent.Action.SHOW_TEXT, text);
+        *///?}
+    }
+
+    @Unique
     private void multiplayerspawners$sendClickableBreakMessage(ServerPlayer player, BlockPos pos, boolean includeBreakLink) {
         MutableComponent explanationMessage = Component.literal("The spawner is disabled for you and nearby players. Other players will have it active so they can enjoy the dungeon.").withStyle(ChatFormatting.LIGHT_PURPLE);
 
@@ -171,19 +185,17 @@ public abstract class ServerPlayerGameModeMixin {
                     .withStyle(style -> style
                             .withColor(ChatFormatting.RED)
                             .withBold(true)
-                            .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
-                                    "/multiplayerspawners allow_break " + pos.getX() + " " + pos.getY() + " " + pos.getZ()))
-                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                    Component.literal("Click to break this spawner").withStyle(ChatFormatting.YELLOW)))
+                            .withClickEvent(multiplayerspawners$runCommand("/multiplayerspawners allow_break " + pos.getX() + " " + pos.getY() + " " + pos.getZ()))
+                            .withHoverEvent(multiplayerspawners$showText(Component.literal("Click to break this spawner").withStyle(ChatFormatting.YELLOW)))
                     );
             explanationMessage.append(clickablePart);
         }
-        player.displayClientMessage(explanationMessage, false);
+        player.sendSystemMessage(explanationMessage);
     }
 
     @Inject(method = "destroyBlock", at = @At("HEAD"), cancellable = true)
     private void multiplayerspawners$onAttemptDestroyBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
-        Level world = this.player.serverLevel();
+        Level world = this.player.level();
         BlockState blockState = world.getBlockState(pos);
 
         if (blockState.getBlock() instanceof SpawnerBlock) {
@@ -227,7 +239,7 @@ public abstract class ServerPlayerGameModeMixin {
                 }
 
                 multiplayerspawners$forceVisualStateRefresh(world, pos, this.player);
-                player.displayClientMessage(Component.literal("It will no longer spawn creatures while you are nearby.").withStyle(ChatFormatting.RED), false);
+                player.sendSystemMessage(Component.literal("It will no longer spawn creatures while you are nearby.").withStyle(ChatFormatting.RED));
                 cir.setReturnValue(false);
                 cir.cancel();
                 return;

@@ -2,14 +2,11 @@ package com.theplumteam.multiplayerspawners.client;
 
 import com.theplumteam.multiplayerspawners.Constants;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.level.ChunkEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 
-@Mod.EventBusSubscriber(modid = Constants.MOD_ID, value = Dist.CLIENT)
 public class ForgeClientEvents {
 
     /**

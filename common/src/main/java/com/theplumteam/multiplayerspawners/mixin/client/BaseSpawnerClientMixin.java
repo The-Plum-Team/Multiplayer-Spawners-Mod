@@ -3,7 +3,9 @@ package com.theplumteam.multiplayerspawners.mixin.client;
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.client.ClientSpawnerData;
 import net.minecraft.core.BlockPos;
-import net.minecraft.util.RandomSource;
+//? if <1.21 {
+/*import net.minecraft.util.RandomSource;
+*///?}
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.BaseSpawner;
 import net.minecraft.world.level.Level;
@@ -68,7 +70,11 @@ public class BaseSpawnerClientMixin {
      * Player-placed spawners are NOT affected - they always show the mob.
      */
     @Inject(method = "getOrCreateDisplayEntity", at = @At("HEAD"), cancellable = true)
-    private void multiplayerspawners$hideDisplayEntity(Level level, RandomSource random, BlockPos pos, CallbackInfoReturnable<Entity> cir) {
+    //? if >=1.21 {
+    private void multiplayerspawners$hideDisplayEntity(Level level, BlockPos pos, CallbackInfoReturnable<Entity> cir) {
+    //?} else {
+    /*private void multiplayerspawners$hideDisplayEntity(Level level, RandomSource random, BlockPos pos, CallbackInfoReturnable<Entity> cir) {
+    *///?}
         // This method is only used on the client for rendering, but checking is good practice.
         if (level.isClientSide()) {
             // Player-placed spawners should always show the mob (vanilla behavior)

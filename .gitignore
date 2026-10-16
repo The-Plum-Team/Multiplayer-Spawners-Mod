@@ -1,23 +1,37 @@
-# eclipse
-bin
+# Gradle
+.gradle/
+build/
+out/
+/.architectury-transformer/
+# Stonecutter version nodes (generated, one per Minecraft version)
+/versions/
+/*/versions/
+
+# Eclipse
+bin/
 *.launch
-.settings
+.settings/
 .metadata
 .classpath
 .project
 
-# idea
-out
+# IntelliJ IDEA
+.idea/
+*.iml
 *.ipr
 *.iws
-*.iml
-.idea/*
-!.idea/scopes
 
-# gradle
-build
-.gradle
+# Visual Studio Code
+.vscode/
 
-# other
-eclipse
-run
+# macOS
+.DS_Store
+
+# Minecraft run directories
+run/
+logs/
+crash-reports/
+
+# Python tooling caches
+__pycache__/
+*.py[cod]

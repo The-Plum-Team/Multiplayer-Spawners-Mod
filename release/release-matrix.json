@@ -1,0 +1,529 @@
+{
+  "schema_version": 1,
+  "lane_count": 34,
+  "default_target": "1.21.1",
+  "project": {
+    "mod_id": "multiplayerspawners",
+    "name": "MultiplayerSpawners",
+    "mod_version": "1.2.0",
+    "description": "Per-player spawners for multiplayer: each player disables a spawner only for themselves, so everyone gets to clear the same dungeon.",
+    "authors": [
+      "ThePlumTeam"
+    ],
+    "license": "CC0-1.0",
+    "sources": "https://github.com/The-Plum-Team/MultiplayerSpawners",
+    "issues": "https://github.com/The-Plum-Team/MultiplayerSpawners/issues"
+  },
+  "artifacts": [
+    {
+      "artifact_node": "fabric-1.20.1",
+      "minecraft": "1.20.1",
+      "loader": "fabric",
+      "java": 17,
+      "no_remap": false,
+      "loader_version": "0.17.3",
+      "fabric_api": "0.92.6+1.20.1",
+      "metadata": {
+        "minecraft": "=1.20.1",
+        "loader": ">=0.17.0"
+      },
+      "gradle_task": ":fabric:1.20.1:remapJar",
+      "jar": "fabric/versions/1.20.1/build/libs/MultiplayerSpawners-fabric-1.20.1-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "forge-1.20.1",
+      "minecraft": "1.20.1",
+      "loader": "forge",
+      "java": 17,
+      "no_remap": false,
+      "loader_version": "1.20.1-47.4.9",
+      "metadata": {
+        "minecraft": "[1.20.1,1.20.2)",
+        "loader_api": "[47,)",
+        "loader": "[47,)"
+      },
+      "gradle_task": ":forge:1.20.1:remapJar",
+      "jar": "forge/versions/1.20.1/build/libs/MultiplayerSpawners-forge-1.20.1-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-1.21.1",
+      "minecraft": "1.21.1",
+      "loader": "fabric",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "0.16.9",
+      "fabric_api": "0.110.0+1.21.1",
+      "metadata": {
+        "minecraft": "=1.21.1",
+        "loader": ">=0.16.0"
+      },
+      "gradle_task": ":fabric:1.21.1:remapJar",
+      "jar": "fabric/versions/1.21.1/build/libs/MultiplayerSpawners-fabric-1.21.1-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-1.21.1",
+      "minecraft": "1.21.1",
+      "loader": "neoforge",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "21.1.77",
+      "metadata": {
+        "minecraft": "[1.21.1,1.21.2)",
+        "loader_api": "[4,)",
+        "loader": "[21.1,)"
+      },
+      "gradle_task": ":neoforge:1.21.1:remapJar",
+      "jar": "neoforge/versions/1.21.1/build/libs/MultiplayerSpawners-neoforge-1.21.1-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-1.21.2",
+      "minecraft": "1.21.2",
+      "loader": "fabric",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "0.16.9",
+      "fabric_api": "0.106.1+1.21.2",
+      "metadata": {
+        "minecraft": "=1.21.2",
+        "loader": ">=0.16.9"
+      },
+      "gradle_task": ":fabric:1.21.2:remapJar",
+      "jar": "fabric/versions/1.21.2/build/libs/MultiplayerSpawners-fabric-1.21.2-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-1.21.2",
+      "minecraft": "1.21.2",
+      "loader": "neoforge",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "21.2.1-beta",
+      "metadata": {
+        "minecraft": "[1.21.2,1.21.3)",
+        "loader_api": "[4,)",
+        "loader": "[21.2,)"
+      },
+      "gradle_task": ":neoforge:1.21.2:remapJar",
+      "jar": "neoforge/versions/1.21.2/build/libs/MultiplayerSpawners-neoforge-1.21.2-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-1.21.3",
+      "minecraft": "1.21.3",
+      "loader": "fabric",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "0.16.9",
+      "fabric_api": "0.114.1+1.21.3",
+      "metadata": {
+        "minecraft": "=1.21.3",
+        "loader": ">=0.16.9"
+      },
+      "gradle_task": ":fabric:1.21.3:remapJar",
+      "jar": "fabric/versions/1.21.3/build/libs/MultiplayerSpawners-fabric-1.21.3-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-1.21.3",
+      "minecraft": "1.21.3",
+      "loader": "neoforge",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "21.3.97",
+      "metadata": {
+        "minecraft": "[1.21.3,1.21.4)",
+        "loader_api": "[4,)",
+        "loader": "[21.3,)"
+      },
+      "gradle_task": ":neoforge:1.21.3:remapJar",
+      "jar": "neoforge/versions/1.21.3/build/libs/MultiplayerSpawners-neoforge-1.21.3-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-1.21.4",
+      "minecraft": "1.21.4",
+      "loader": "fabric",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "0.17.0",
+      "fabric_api": "0.111.0+1.21.4",
+      "metadata": {
+        "minecraft": "=1.21.4",
+        "loader": ">=0.17.0"
+      },
+      "gradle_task": ":fabric:1.21.4:remapJar",
+      "jar": "fabric/versions/1.21.4/build/libs/MultiplayerSpawners-fabric-1.21.4-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-1.21.4",
+      "minecraft": "1.21.4",
+      "loader": "neoforge",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "21.4.156",
+      "metadata": {
+        "minecraft": "[1.21.4,1.21.5)",
+        "loader_api": "[4,)",
+        "loader": "[21.4,)"
+      },
+      "gradle_task": ":neoforge:1.21.4:remapJar",
+      "jar": "neoforge/versions/1.21.4/build/libs/MultiplayerSpawners-neoforge-1.21.4-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-1.21.5",
+      "minecraft": "1.21.5",
+      "loader": "fabric",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "0.16.10",
+      "fabric_api": "0.126.0+1.21.5",
+      "metadata": {
+        "minecraft": "=1.21.5",
+        "loader": ">=0.16.10"
+      },
+      "gradle_task": ":fabric:1.21.5:remapJar",
+      "jar": "fabric/versions/1.21.5/build/libs/MultiplayerSpawners-fabric-1.21.5-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-1.21.5",
+      "minecraft": "1.21.5",
+      "loader": "neoforge",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "21.5.82",
+      "metadata": {
+        "minecraft": "[1.21.5,1.21.6)",
+        "loader_api": "[4,)",
+        "loader": "[21.5,)"
+      },
+      "gradle_task": ":neoforge:1.21.5:remapJar",
+      "jar": "neoforge/versions/1.21.5/build/libs/MultiplayerSpawners-neoforge-1.21.5-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-1.21.6",
+      "minecraft": "1.21.6",
+      "loader": "fabric",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "0.16.14",
+      "fabric_api": "0.127.1+1.21.6",
+      "metadata": {
+        "minecraft": "=1.21.6",
+        "loader": ">=0.16.14"
+      },
+      "gradle_task": ":fabric:1.21.6:remapJar",
+      "jar": "fabric/versions/1.21.6/build/libs/MultiplayerSpawners-fabric-1.21.6-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-1.21.6",
+      "minecraft": "1.21.6",
+      "loader": "neoforge",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "21.6.20-beta",
+      "metadata": {
+        "minecraft": "[1.21.6,1.21.7)",
+        "loader_api": "[4,)",
+        "loader": "[21.6,)"
+      },
+      "gradle_task": ":neoforge:1.21.6:remapJar",
+      "jar": "neoforge/versions/1.21.6/build/libs/MultiplayerSpawners-neoforge-1.21.6-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-1.21.7",
+      "minecraft": "1.21.7",
+      "loader": "fabric",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "0.16.14",
+      "fabric_api": "0.128.1+1.21.7",
+      "metadata": {
+        "minecraft": "=1.21.7",
+        "loader": ">=0.16.14"
+      },
+      "gradle_task": ":fabric:1.21.7:remapJar",
+      "jar": "fabric/versions/1.21.7/build/libs/MultiplayerSpawners-fabric-1.21.7-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-1.21.7",
+      "minecraft": "1.21.7",
+      "loader": "neoforge",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "21.7.25-beta",
+      "metadata": {
+        "minecraft": "[1.21.7,1.21.8)",
+        "loader_api": "[4,)",
+        "loader": "[21.7,)"
+      },
+      "gradle_task": ":neoforge:1.21.7:remapJar",
+      "jar": "neoforge/versions/1.21.7/build/libs/MultiplayerSpawners-neoforge-1.21.7-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-1.21.8",
+      "minecraft": "1.21.8",
+      "loader": "fabric",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "0.16.14",
+      "fabric_api": "0.129.0+1.21.8",
+      "metadata": {
+        "minecraft": "=1.21.8",
+        "loader": ">=0.16.14"
+      },
+      "gradle_task": ":fabric:1.21.8:remapJar",
+      "jar": "fabric/versions/1.21.8/build/libs/MultiplayerSpawners-fabric-1.21.8-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-1.21.8",
+      "minecraft": "1.21.8",
+      "loader": "neoforge",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "21.8.52",
+      "metadata": {
+        "minecraft": "[1.21.8,1.21.9)",
+        "loader_api": "[4,)",
+        "loader": "[21.8,)"
+      },
+      "gradle_task": ":neoforge:1.21.8:remapJar",
+      "jar": "neoforge/versions/1.21.8/build/libs/MultiplayerSpawners-neoforge-1.21.8-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-1.21.9",
+      "minecraft": "1.21.9",
+      "loader": "fabric",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "0.17.3",
+      "fabric_api": "0.134.1+1.21.9",
+      "metadata": {
+        "minecraft": "=1.21.9",
+        "loader": ">=0.17.2"
+      },
+      "gradle_task": ":fabric:1.21.9:remapJar",
+      "jar": "fabric/versions/1.21.9/build/libs/MultiplayerSpawners-fabric-1.21.9-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-1.21.9",
+      "minecraft": "1.21.9",
+      "loader": "neoforge",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "21.9.16-beta",
+      "metadata": {
+        "minecraft": "[1.21.9,1.21.10)",
+        "loader_api": "[4,)",
+        "loader": "[21.9,)"
+      },
+      "gradle_task": ":neoforge:1.21.9:remapJar",
+      "jar": "neoforge/versions/1.21.9/build/libs/MultiplayerSpawners-neoforge-1.21.9-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-1.21.10",
+      "minecraft": "1.21.10",
+      "loader": "fabric",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "0.18.4",
+      "fabric_api": "0.138.4+1.21.10",
+      "metadata": {
+        "minecraft": "=1.21.10",
+        "loader": ">=0.17.2"
+      },
+      "gradle_task": ":fabric:1.21.10:remapJar",
+      "jar": "fabric/versions/1.21.10/build/libs/MultiplayerSpawners-fabric-1.21.10-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-1.21.10",
+      "minecraft": "1.21.10",
+      "loader": "neoforge",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "21.10.64",
+      "metadata": {
+        "minecraft": "[1.21.10,1.21.11)",
+        "loader_api": "[4,)",
+        "loader": "[21.10,)"
+      },
+      "gradle_task": ":neoforge:1.21.10:remapJar",
+      "jar": "neoforge/versions/1.21.10/build/libs/MultiplayerSpawners-neoforge-1.21.10-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-1.21.11",
+      "minecraft": "1.21.11",
+      "loader": "fabric",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "0.18.4",
+      "fabric_api": "0.141.3+1.21.11",
+      "metadata": {
+        "minecraft": "=1.21.11",
+        "loader": ">=0.17.2"
+      },
+      "gradle_task": ":fabric:1.21.11:remapJar",
+      "jar": "fabric/versions/1.21.11/build/libs/MultiplayerSpawners-fabric-1.21.11-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-1.21.11",
+      "minecraft": "1.21.11",
+      "loader": "neoforge",
+      "java": 21,
+      "no_remap": false,
+      "loader_version": "21.11.38-beta",
+      "metadata": {
+        "minecraft": "[1.21.11,1.21.12)",
+        "loader_api": "[4,)",
+        "loader": "[21.11,)"
+      },
+      "gradle_task": ":neoforge:1.21.11:remapJar",
+      "jar": "neoforge/versions/1.21.11/build/libs/MultiplayerSpawners-neoforge-1.21.11-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-26.1",
+      "minecraft": "26.1",
+      "loader": "fabric",
+      "java": 25,
+      "no_remap": true,
+      "loader_version": "0.19.3",
+      "fabric_api": "0.145.1+26.1",
+      "metadata": {
+        "minecraft": "=26.1",
+        "loader": ">=0.18.0"
+      },
+      "gradle_task": ":fabric:26.1:shadowJar",
+      "jar": "fabric/versions/26.1/build/libs/MultiplayerSpawners-fabric-26.1-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-26.1",
+      "minecraft": "26.1",
+      "loader": "neoforge",
+      "java": 25,
+      "no_remap": true,
+      "loader_version": "26.1.0.19-beta",
+      "metadata": {
+        "minecraft": "[26.1,26.1.1)",
+        "loader_api": "[1,)",
+        "loader": "[26.1,)"
+      },
+      "gradle_task": ":neoforge:26.1:shadowJar",
+      "jar": "neoforge/versions/26.1/build/libs/MultiplayerSpawners-neoforge-26.1-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-26.1.1",
+      "minecraft": "26.1.1",
+      "loader": "fabric",
+      "java": 25,
+      "no_remap": true,
+      "loader_version": "0.19.3",
+      "fabric_api": "0.145.4+26.1.1",
+      "metadata": {
+        "minecraft": "=26.1.1",
+        "loader": ">=0.18.0"
+      },
+      "gradle_task": ":fabric:26.1.1:shadowJar",
+      "jar": "fabric/versions/26.1.1/build/libs/MultiplayerSpawners-fabric-26.1.1-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-26.1.1",
+      "minecraft": "26.1.1",
+      "loader": "neoforge",
+      "java": 25,
+      "no_remap": true,
+      "loader_version": "26.1.1.15-beta",
+      "metadata": {
+        "minecraft": "[26.1.1,26.1.2)",
+        "loader_api": "[1,)",
+        "loader": "[26.1.1,)"
+      },
+      "gradle_task": ":neoforge:26.1.1:shadowJar",
+      "jar": "neoforge/versions/26.1.1/build/libs/MultiplayerSpawners-neoforge-26.1.1-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-26.1.2",
+      "minecraft": "26.1.2",
+      "loader": "fabric",
+      "java": 25,
+      "no_remap": true,
+      "loader_version": "0.19.3",
+      "fabric_api": "0.151.0+26.1.2",
+      "metadata": {
+        "minecraft": "=26.1.2",
+        "loader": ">=0.18.0"
+      },
+      "gradle_task": ":fabric:26.1.2:shadowJar",
+      "jar": "fabric/versions/26.1.2/build/libs/MultiplayerSpawners-fabric-26.1.2-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-26.1.2",
+      "minecraft": "26.1.2",
+      "loader": "neoforge",
+      "java": 25,
+      "no_remap": true,
+      "loader_version": "26.1.2.76",
+      "metadata": {
+        "minecraft": "[26.1.2,26.1.3)",
+        "loader_api": "[1,)",
+        "loader": "[26.1.2,)"
+      },
+      "gradle_task": ":neoforge:26.1.2:shadowJar",
+      "jar": "neoforge/versions/26.1.2/build/libs/MultiplayerSpawners-neoforge-26.1.2-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-26.2",
+      "minecraft": "26.2",
+      "loader": "fabric",
+      "java": 25,
+      "no_remap": true,
+      "loader_version": "0.19.3",
+      "fabric_api": "0.152.2+26.2",
+      "metadata": {
+        "minecraft": "=26.2",
+        "loader": ">=0.19.0"
+      },
+      "gradle_task": ":fabric:26.2:shadowJar",
+      "jar": "fabric/versions/26.2/build/libs/MultiplayerSpawners-fabric-26.2-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-26.2",
+      "minecraft": "26.2",
+      "loader": "neoforge",
+      "java": 25,
+      "no_remap": true,
+      "loader_version": "26.2.0.10-beta",
+      "metadata": {
+        "minecraft": "[26.2,26.2.1)",
+        "loader_api": "[1,)",
+        "loader": "[26.2,)"
+      },
+      "gradle_task": ":neoforge:26.2:shadowJar",
+      "jar": "neoforge/versions/26.2/build/libs/MultiplayerSpawners-neoforge-26.2-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "fabric-26.3",
+      "minecraft": "26.3",
+      "loader": "fabric",
+      "java": 25,
+      "no_remap": true,
+      "loader_version": "0.19.5",
+      "fabric_api": "0.160.6+26.3",
+      "metadata": {
+        "minecraft": "=26.3",
+        "loader": ">=0.19.5"
+      },
+      "gradle_task": ":fabric:26.3:shadowJar",
+      "jar": "fabric/versions/26.3/build/libs/MultiplayerSpawners-fabric-26.3-{mod_version}.jar"
+    },
+    {
+      "artifact_node": "neoforge-26.3",
+      "minecraft": "26.3",
+      "loader": "neoforge",
+      "java": 25,
+      "no_remap": true,
+      "loader_version": "26.3.0.3-beta",
+      "metadata": {
+        "minecraft": "[26.3,26.3.1)",
+        "loader_api": "[1,)",
+        "loader": "[26.3,)"
+      },
+      "gradle_task": ":neoforge:26.3:shadowJar",
+      "jar": "neoforge/versions/26.3/build/libs/MultiplayerSpawners-neoforge-26.3-{mod_version}.jar"
+    }
+  ]
+}

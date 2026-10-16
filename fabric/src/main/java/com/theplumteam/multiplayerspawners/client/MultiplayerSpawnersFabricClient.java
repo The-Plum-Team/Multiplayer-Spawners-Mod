@@ -4,54 +4,40 @@ import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.network.FabricNetworkHandler;
 import com.theplumteam.multiplayerspawners.registration.ModBlocksItems;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+//? if >=1.21.6 && <26.1 {
+import net.fabricmc.fabric.api.client.rendering.v1.BlockRenderLayerMap;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+//?} else if <1.21.6 {
+/*import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.minecraft.client.renderer.RenderType;
+*///?}
 
 public class MultiplayerSpawnersFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        // Set the render layer for our transparent blocks
-        BlockRenderLayerMap.INSTANCE.putBlock(ModBlocksItems.UNLIT_TORCH.get(), RenderType.cutout());
+        // The unlit torch textures have transparent pixels. From 26.1 the game derives the layer
+        // from the texture itself.
+        //? if >=1.21.6 && <26.1 {
+        BlockRenderLayerMap.putBlocks(ChunkSectionLayer.CUTOUT, ModBlocksItems.UNLIT_TORCH.get(), ModBlocksItems.UNLIT_WALL_TORCH.get());
+        //?} else if <1.21.6 {
+        /*BlockRenderLayerMap.INSTANCE.putBlock(ModBlocksItems.UNLIT_TORCH.get(), RenderType.cutout());
         BlockRenderLayerMap.INSTANCE.putBlock(ModBlocksItems.UNLIT_WALL_TORCH.get(), RenderType.cutout());
+        *///?}
 
-        // Initialize client-side network handler
         FabricNetworkHandler.initClient();
 
-        // Register disconnect event to clear client data
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            Constants.LOG.info("CLIENT: Fabric disconnect event");
-            ClientEventHandler.onClientDisconnect();
-        });
+        // Leaving a world clears the client data. Joining must not: the first packets of the new
+        // world can arrive before the join event.
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ClientEventHandler.onClientDisconnect());
 
-        // Register join event to clear old data
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
-            Constants.LOG.info("CLIENT: Fabric join event");
-            // DO NOT call onClientConnect() here. It causes a race condition.
-            // onClientDisconnect() already handles clearing the data when leaving a world.
-            // ClientEventHandler.onClientConnect(); // <- REMOVE THIS LINE
-        });
+        ClientTickEvents.END_CLIENT_TICK.register(client -> ClientEventHandler.onClientTick());
+        ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> ClientEventHandler.onChunkLoad(chunk));
+        ClientChunkEvents.CHUNK_UNLOAD.register((world, chunk) -> ClientEventHandler.onChunkUnload(chunk));
 
-        // Register client tick events for dimension detection and periodic updates
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            ClientEventHandler.onClientTick();
-        });
-
-        // Register chunk loading events
-        ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> {
-            Constants.LOG.debug("CLIENT: Fabric chunk load event for {}, {}", chunk.getPos().x, chunk.getPos().z);
-            ClientEventHandler.onChunkLoad(chunk);
-        });
-
-        // Register chunk unloading events
-        ClientChunkEvents.CHUNK_UNLOAD.register((world, chunk) -> {
-            Constants.LOG.debug("CLIENT: Fabric chunk unload event for {}, {}", chunk.getPos().x, chunk.getPos().z);
-            ClientEventHandler.onChunkUnload(chunk);
-        });
-
-        Constants.LOG.info("MultiplayerSpawners Fabric enhanced client initialized");
+        Constants.debug("MultiplayerSpawners Fabric client initialized");
     }
 }

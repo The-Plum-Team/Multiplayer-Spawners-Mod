@@ -1,10 +1,8 @@
-// forge/src/main/java/com/theplumteam/multiplayerspawners/ForgeServerEvents.java
 package com.theplumteam.multiplayerspawners;
 
 import com.theplumteam.multiplayerspawners.event.CommandHandler;
 import com.theplumteam.multiplayerspawners.event.PlayerEventHandler;
 import com.theplumteam.multiplayerspawners.event.ServerLifecycleHandler;
-import com.theplumteam.multiplayerspawners.network.ForgeNetworkHandler;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
 import com.theplumteam.multiplayerspawners.util.TorchTracker;
 import net.minecraft.server.level.ServerLevel;
@@ -17,11 +15,10 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.level.ChunkEvent;
 import net.minecraftforge.event.level.ChunkWatchEvent;
 import net.minecraftforge.event.level.LevelEvent;
+import net.minecraftforge.event.server.ServerAboutToStartEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 
-@Mod.EventBusSubscriber(modid = Constants.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ForgeServerEvents {
 
     @SubscribeEvent
@@ -59,9 +56,14 @@ public class ForgeServerEvents {
 
     @SubscribeEvent
     public static void onLevelLoad(LevelEvent.Load event) {
-        if (event.getLevel() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+        if (event.getLevel() instanceof ServerLevel serverLevel) {
             ServerLifecycleHandler.onLevelLoad(serverLevel);
         }
+    }
+
+    @SubscribeEvent
+    public static void onServerAboutToStart(ServerAboutToStartEvent event) {
+        ServerLifecycleHandler.onServerStarting(event.getServer());
     }
 
     @SubscribeEvent
@@ -75,8 +77,8 @@ public class ForgeServerEvents {
      */
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
-        if (!event.getLevel().isClientSide() && event.getChunk() instanceof LevelChunk chunk) {
-            ForgeNetworkHandler.sendChunkSpawnerStatesToTracking(chunk);
+        if (event.getLevel() instanceof ServerLevel serverLevel && event.getChunk() instanceof LevelChunk chunk) {
+            NetworkHandler.getInstance().sendChunkSpawnerStatesToTracking(serverLevel, chunk);
         }
     }
 
