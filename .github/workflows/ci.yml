@@ -83,7 +83,8 @@ jobs:
           sudo apt-get install -y -q --no-install-recommends xvfb xdotool libgl1-mesa-dri libglx-mesa0 \
             libegl1 libegl-mesa0
       - name: Install the hash-locked test packages
-        run: python3 -m pip install --only-binary=:all: --require-hashes -r e2e/requirements.txt
+        run: |
+          python3 -m pip install --only-binary=:all: --require-hashes -r e2e/requirements.txt
       - name: Play each jar with three real clients on a dedicated server
         env:
           MINECRAFT: ${{ matrix.minecraft }}
