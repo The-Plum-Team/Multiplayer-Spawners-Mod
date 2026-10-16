@@ -62,7 +62,7 @@
   "kind": "mod-base.build.config",
   "plan_inputs": [],
   "profile": "block-pops",
-  "repository": "The-Plum-Team/MultiplayerSpawners",
+  "repository": "The-Plum-Team/Multiplayer-Spawners-Mod",
   "scenario_contract": {
     "path": "e2e/scenario-contract.json"
   },
