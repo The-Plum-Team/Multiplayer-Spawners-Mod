@@ -77,4 +77,5 @@ To add a Minecraft version, add its lanes to `release/release-matrix.json`, run
 
 ## License
 
-[CC0-1.0](LICENSE)
+[CC0-1.0](LICENSE), except the few files managed by The Plum Team's mod-base kit, which keep the
+kit's terms: see [ADR 0001](docs/architecture/decisions/0001-adopt-mod-base.md).

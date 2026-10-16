@@ -35,3 +35,9 @@ crash-reports/
 # Python tooling caches
 __pycache__/
 *.py[cod]
+
+# mod-base: kit checkout, E2E output and local Pages builds
+out/
+e2e-out/
+_site/
+public-evidence/
