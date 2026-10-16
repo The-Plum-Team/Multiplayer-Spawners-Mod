@@ -2,6 +2,7 @@
   "adapter": {
     "api": 1,
     "extensions": [],
+    "fixtures_path": "scripts/pages/mod_base_fixtures.py",
     "network_hooks": [],
     "path": "scripts/pages/mod_base_adapter.py",
     "python_path": [
@@ -23,12 +24,15 @@
   },
   "canonical_branch": "main",
   "copy": {
-    "evidence_lead": "Every public frame comes from a successful packaged-JAR run and is bound to an exact commit, loader and Actions run.",
+    "evidence_lead": "Every frame is a screenshot from one of three real Minecraft clients playing the production jar on the loader's real dedicated server, taken by a check that passed, and bound to its exact commit, loader and Actions run.",
     "family_notes": {},
-    "gallery_lead": "Browse every validated capture of the packaged end-to-end tests by release, loader and checkpoint.",
+    "gallery_lead": "What three real players saw on a dedicated server, for every Minecraft version and loader: one player disables a spawner for herself and the players near her, while it stays active for everyone else.",
     "methodology": [
+      "For every lane, scripts/e2e/multiplayer.py starts the loader's dedicated server with the production jar and three real clients of the same loader, each on its own virtual display.",
+      "The players act through real mouse and keyboard input; the server is only set up over RCON (placing the test spawners, teleporting players to look at them, reading block data).",
+      "Each capture is published only when its check passed: the share of the mod's golden active texture around the crosshair, the chat, or the block the server reports.",
       "Each capture is bound to its exact commit, tested run, loader and production JAR digest.",
-      "Publication is advisory; the repository's build and packaged end-to-end gates remain authoritative."
+      "Publication is advisory; the repository's build and multiplayer gates remain authoritative."
     ],
     "principles": [
       "Every image comes from a real packaged mod JAR.",
@@ -37,15 +41,15 @@
   },
   "families": [],
   "images": {
-    "cross_check_runtime_metrics": true,
+    "cross_check_runtime_metrics": false,
     "derivative_box": [
-      1600,
-      900
+      1280,
+      720
     ],
     "pixel_metrics_version": 1,
     "source_size": [
-      1920,
-      1080
+      1280,
+      720
     ],
     "webp_method": 6,
     "webp_quality": 82
@@ -59,9 +63,13 @@
     },
     "release_prefix": "Minecraft",
     "roles": {
-      "client_a": "Client A"
+      "alice": "Alice",
+      "bob": "Bob",
+      "carol": "Carol"
     },
-    "scenarios": {},
+    "scenarios": {
+      "multiplayer": "Three players on a dedicated server"
+    },
     "search_placeholder": "Search checkpoints",
     "tiers": {
       "all": "Full review",
@@ -83,7 +91,7 @@
         "url": "https://github.com/The-Plum-Team/Multiplayer-Spawners-Mod"
       }
     ],
-    "name": "MultiplayerSpawners",
+    "name": "Multiplayer Spawners",
     "tagline": "Per-player spawners for multiplayer servers"
   },
   "schema_version": 1,
@@ -93,6 +101,7 @@
     "display_title": null,
     "events": {
       "canonical": [
+        "push",
         "workflow_dispatch"
       ],
       "other": []
@@ -101,7 +110,7 @@
     "handoff_step": "Prepare and hand off public evidence",
     "require_job_graph": false,
     "require_newest_run": true,
-    "workflow": ".github/workflows/e2e.yml"
+    "workflow": ".github/workflows/ci.yml"
   },
   "targets": {
     "max": 64,

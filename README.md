@@ -10,6 +10,9 @@ stays active for everyone else, so every player gets to clear the same dungeon.
 - **Torches:** a torch placed within 7 blocks of a spawner is put out after a delay.
 - **Player-placed spawners** can behave like vanilla ones.
 
+The [project site](https://the-plum-team.github.io/Multiplayer-Spawners-Mod/) shows what three real
+players saw while testing every supported Minecraft version and loader on a dedicated server.
+
 ## Versions
 
 One jar per loader and Minecraft version, all built from the `main` branch:
@@ -70,7 +73,8 @@ CI runs two tests on every lane (34 of them, see the table above) with the produ
   active for is near, each player sees it their own way (also after a restart and a rejoin), the
   chat link breaks it, a torch near it goes out, and a spawner a player places stays vanilla. The
   script's docstring lists every checkpoint; the screenshots of what each player saw are kept with
-  the CI run.
+  the CI run. On `main`, CI also hands the captures to the
+[mod-base](https://github.com/The-Plum-Team/mod-base) kit, which publishes them on the project site.
 
 The multiplayer test needs Xvfb, xdotool and the hash-locked packages of `e2e/requirements.txt`:
 

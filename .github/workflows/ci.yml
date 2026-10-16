@@ -106,12 +106,81 @@ jobs:
             build/multiplayer/lanes/*/result.json
           retention-days: 7
           if-no-files-found: ignore
+      - name: Upload the captures for the project site
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evidence-${{ matrix.minecraft }}
+          path: build/multiplayer/evidence/
+          retention-days: 1
+          if-no-files-found: error
       - name: Upload the jars
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: jars-${{ matrix.minecraft }}
           path: "*/versions/${{ matrix.minecraft }}/build/libs/MultiplayerSpawners-*-${{ matrix.minecraft }}-*[0-9].jar"
           if-no-files-found: error
+
+  # On main, every version's captures go to the pinned mod-base kit, which publishes them on the
+  # project site (pages.yml). The job and step names are the ones site/mod-base.json names.
+  evidence:
+    name: Prepare public evidence for mc${{ matrix.minecraft }}
+    needs: [matrix, build]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.versions) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Verify the pinned kit and install the imaging dependency
+        uses: The-Plum-Team/mod-base/actions/setup@acb01ca4f625a5d27f1c1a709a416d9725bef64f # v1.7.0
+      - name: Download the captures of this version
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: evidence-${{ matrix.minecraft }}
+          path: ${{ runner.temp }}/evidence
+      - name: Read the subject tree
+        id: subject
+        run: |
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          printf 'tree=%s\n' "$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+      - name: Prepare and hand off public evidence
+        uses: The-Plum-Team/mod-base/actions/prepare-evidence@acb01ca4f625a5d27f1c1a709a416d9725bef64f # v1.7.0
+        with:
+          e2e-root: ${{ runner.temp }}/evidence
+          key: mc${{ matrix.minecraft }}
+          subject-branch: ${{ github.ref_name }}
+          subject-commit: ${{ github.sha }}
+          subject-tree: ${{ steps.subject.outputs.tree }}
+          tested-run-id: ${{ github.run_id }}
+          tested-run-attempt: ${{ github.run_attempt }}
+          tested-branch: ${{ github.ref_name }}
+          tested-commit: ${{ github.sha }}
+          tested-controller-branch: ${{ github.ref_name }}
+          tested-controller-sha: ${{ github.sha }}
+
+  notify-pages:
+    name: Wake the project site
+    needs: evidence
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch the separately locked Pages publication
+        uses: The-Plum-Team/mod-base/actions/notify-pages@acb01ca4f625a5d27f1c1a709a416d9725bef64f # v1.7.0
+        with:
+          operation: deploy
+          run-id: ${{ github.run_id }}
+          sha: ${{ github.sha }}
 
   # One fixed name for the ruleset to require, whatever versions the matrix lists.
   all-versions:
