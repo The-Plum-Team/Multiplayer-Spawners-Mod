@@ -77,6 +77,7 @@ git diff --check
 python3 scripts/release/matrix.py
 ./gradlew -PmpsTarget=<minecraft> buildTarget
 python3 scripts/e2e/server_smoke.py --minecraft <minecraft>
+python3 scripts/e2e/multiplayer.py --minecraft <minecraft>   # needs Xvfb and xdotool, see README
 python3 scripts/ci/mod_base_kit.py verify --network
 python3 scripts/ci/mod_base_kit.py run template check --repo .
 ```

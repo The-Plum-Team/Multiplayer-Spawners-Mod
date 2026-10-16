@@ -64,12 +64,13 @@ from directory or branch names: the README shows a summary for users only.
 | Behaviour shared by every loader and version | `main` | `common/src/main` |
 | One loader | `main` | `<loader>/src/main` |
 | One Minecraft version or range | `main` | A Stonecutter condition or a rename rule in the shared tree |
-| Supported version/loader inventory | `release/release-matrix.json` | A lane that builds and passes the server smoke test |
+| Supported version/loader inventory | `release/release-matrix.json` | A lane that builds and passes the server and multiplayer tests |
 | Generated output or staged artifacts | Nowhere | Fix the tracked input instead |
 
 Adding a Minecraft version: add its lanes to the matrix (dependency versions included), validate
 it, build that version, then smoke-test it. A mixin target is a string that javac does not check,
-so a version is not supported until `scripts/e2e/server_smoke.py` passes for each of its lanes.
+so a version is not supported until `scripts/e2e/server_smoke.py` and `scripts/e2e/multiplayer.py`
+pass for each of its lanes.
 
 ## Verification
 
@@ -82,12 +83,22 @@ python3 scripts/ci/mod_base_kit.py run template check --repo .
 python3 scripts/release/matrix.py
 ./gradlew -PmpsTarget=<minecraft> buildTarget
 python3 scripts/e2e/server_smoke.py --minecraft <minecraft>
+python3 scripts/e2e/multiplayer.py --minecraft <minecraft>
 python3 scripts/release/build_matrix.py && python3 scripts/e2e/server_smoke.py --all
+python3 scripts/e2e/multiplayer.py --all
 ```
 
 The server smoke test starts each lane's real dedicated server with the production jar and makes
 Mixin apply every mixin at start (`-Dmultiplayerspawners.mixinAudit=true`). Client-only mixins do
 not load on a server; check their targets against every version when changing them.
+
+The multiplayer test (`scripts/e2e/multiplayer.py`) is where the client side is proven: it runs the
+lane's real dedicated server and three real clients of the same loader on virtual displays, drives
+the players with real input (xdotool) and the world over RCON, and checks the server's data, the
+chat and each player's screen. Its docstring lists the checkpoints in order. When a change alters
+what a player sees or is told, update the text or visual expectation in that script with it. It
+needs Xvfb, xdotool and `e2e/requirements.txt` (installed with `--require-hashes`); CI runs it in
+every version job and keeps the screenshots for seven days.
 
 ## mod-base Build adapter
 
