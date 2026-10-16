@@ -2,7 +2,7 @@
 """Start a real dedicated server with a built release jar and check that the mod loads.
 
 For each lane (artifact node of release/release-matrix.json) this installs the loader's own
-server, puts the production jar (plus Fabric API on Fabric) in mods/, starts it with
+server from the matrix's pinned installer (refusing any file whose SHA-256 differs), puts the production jar (plus Fabric API on Fabric) in mods/, starts it with
 -Dmultiplayerspawners.mixinAudit=true so that every mixin is applied at start, waits for the
 server to finish loading, stops it and checks:
 
@@ -22,6 +22,7 @@ Build the jars first (scripts/release/build_matrix.py). Servers, installers and 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -35,20 +36,28 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MATRIX = ROOT / "release" / "release-matrix.json"
-FABRIC_INSTALLER = "1.1.0"
 START_TIMEOUT = 600
 STOP_TIMEOUT = 120
 MOD_ID = "multiplayerspawners"
 
 
-def download(url: str, target: Path) -> Path:
-    if not target.exists():
-        target.parent.mkdir(parents=True, exist_ok=True)
-        partial = target.with_name(target.name + ".part")
-        request = urllib.request.Request(url, headers={"User-Agent": "MultiplayerSpawners-server-smoke"})
-        with urllib.request.urlopen(request, timeout=120) as response, partial.open("wb") as out:
-            shutil.copyfileobj(response, out)
-        partial.replace(target)
+def download(url: str, sha256: str, target: Path) -> Path:
+    """Fetch `url` once into `target`, refusing any file whose SHA-256 is not `sha256`."""
+
+    if target.exists() and hashlib.sha256(target.read_bytes()).hexdigest() == sha256:
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name(target.name + ".part")
+    request = urllib.request.Request(url, headers={"User-Agent": "MultiplayerSpawners-server-smoke"})
+    digest = hashlib.sha256()
+    with urllib.request.urlopen(request, timeout=120) as response, partial.open("wb") as out:
+        while chunk := response.read(1 << 20):
+            digest.update(chunk)
+            out.write(chunk)
+    if digest.hexdigest() != sha256:
+        partial.unlink()
+        raise RuntimeError(f"{url} does not have the pinned SHA-256 {sha256}")
+    partial.replace(target)
     return target
 
 
@@ -64,44 +73,48 @@ def find_java(version: int, overrides: dict[int, str]) -> str:
     raise SystemExit(f"no Java {version} found; pass --java {version}=<java home>")
 
 
-def install(artifact: dict, server: Path, cache: Path, java: str) -> list[str]:
-    """Install the loader's server into `server` and return the command that starts it."""
+def install(artifact: dict, installers: dict, server: Path, cache: Path, java: str) -> list[str]:
+    """Install the loader's server into `server` from the matrix's pinned installer and return the
+    command that starts it. The installers verify what they download themselves."""
+
     loader, minecraft, version = artifact["loader"], artifact["minecraft"], artifact["loader_version"]
+    pinned = installers[artifact["installer"]]
+    installer = download(pinned["url"], pinned["sha256"], cache / f"{artifact['installer']}-installer.jar")
     mods = server / "mods"
     mods.mkdir(parents=True, exist_ok=True)
+    jvm = [java, "-Xmx2G", f"-D{MOD_ID}.mixinAudit=true"]
     if loader == "fabric":
-        launcher = download(
-            f"https://meta.fabricmc.net/v2/versions/loader/{minecraft}/{version}/{FABRIC_INSTALLER}/server/jar",
-            cache / f"fabric-server-{minecraft}-{version}.jar")
+        subprocess.run([java, "-jar", str(installer), "server", "-dir", str(server), "-mcversion", minecraft,
+                        "-loader", version, "-downloadMinecraft"], cwd=server, check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         api = artifact["fabric_api"]
         download(f"https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/{api}/fabric-api-{api}.jar",
-                 cache / f"fabric-api-{api}.jar")
-        shutil.copy(cache / f"fabric-api-{api}.jar", mods)
-        shutil.copy(launcher, server / "fabric-server-launch.jar")
-        return [java, "-Xmx2G", f"-D{MOD_ID}.mixinAudit=true", "-jar", "fabric-server-launch.jar", "nogui"]
+                 artifact["fabric_api_sha256"], mods / f"fabric-api-{api}.jar")
+        return jvm + ["-jar", "fabric-server-launch.jar", "nogui"]
 
-    if loader == "neoforge":
-        url = f"https://maven.neoforged.net/releases/net/neoforged/neoforge/{version}/neoforge-{version}-installer.jar"
-    else:
-        url = f"https://maven.minecraftforge.net/net/minecraftforge/forge/{version}/forge-{version}-installer.jar"
-    installer = download(url, cache / f"{loader}-{version}-installer.jar")
-    subprocess.run([java, "-jar", str(installer), "--installServer", str(server)], cwd=server, check=True,
+    flag = "--installServer" if loader == "forge" else "--install-server"
+    subprocess.run([java, "-jar", str(installer), flag, str(server)], cwd=server, check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    args_file = next(server.glob(f"libraries/net/{'neoforged/neoforge' if loader == 'neoforge' else 'minecraftforge/forge'}/*/unix_args.txt"))
-    return [java, "-Xmx2G", f"-D{MOD_ID}.mixinAudit=true", f"@{args_file.relative_to(server)}", "nogui"]
+    package = "neoforged/neoforge" if loader == "neoforge" else "minecraftforge/forge"
+    args_file = next(server.glob(f"libraries/net/{package}/*/unix_args.txt"))
+    return jvm + [f"@{args_file.relative_to(server)}", "nogui"]
 
 
-def smoke(artifact: dict, mod_version: str, work: Path, overrides: dict[int, str]) -> tuple[bool, str]:
+CHECKPOINTS = ("started", "mixins", "config")
+
+
+def run_server(artifact: dict, installers: dict, jar: Path, work: Path,
+               overrides: dict[int, str]) -> tuple[dict[str, list[str]], Path]:
+    """Run one lane's server with `jar` and return the problems found per checkpoint (an empty
+    list is a pass) and the server log."""
+
     node = artifact["artifact_node"]
-    jar = ROOT / artifact["jar"].replace("{mod_version}", mod_version)
-    if not jar.exists():
-        return False, f"missing {jar.relative_to(ROOT)}; build it first"
     java = find_java(artifact["java"], overrides)
     server = work / "servers" / node
     if server.exists():
         shutil.rmtree(server)
     server.mkdir(parents=True)
-    command = install(artifact, server, work / "cache", java)
+    command = install(artifact, installers, server, work / "cache", java)
     shutil.copy(jar, server / "mods")
     (server / "eula.txt").write_text("eula=true\n")
     (server / "server.properties").write_text(
@@ -143,22 +156,32 @@ def smoke(artifact: dict, mod_version: str, work: Path, overrides: dict[int, str
         reader.join(timeout=10)
 
     text = "".join(lines)
-    problems = []
+    problems: dict[str, list[str]] = {checkpoint: [] for checkpoint in CHECKPOINTS}
     if not reached_done:
-        problems.append("server did not finish starting")
+        problems["started"].append("server did not finish starting")
     if process.returncode not in (0, None):
-        problems.append(f"server exited with {process.returncode}")
+        problems["started"].append(f"server exited with {process.returncode}")
     if "Mixin audit passed" not in text:
-        problems.append("mixin audit did not pass")
+        problems["mixins"].append("mixin audit did not pass")
     for line in lines:
         lowered = line.lower()
-        if MOD_ID in lowered and ("mixin" in lowered or "injection" in lowered) and re.search(r"\b(ERROR|FATAL)\b|failed|could not", line, re.IGNORECASE):
-            problems.append("mixin problem: " + line.strip()[:300])
+        if MOD_ID in lowered and ("mixin" in lowered or "injection" in lowered) and re.search(
+                r"\b(ERROR|FATAL)\b|failed|could not", line, re.IGNORECASE):
+            problems["mixins"].append("mixin problem: " + line.strip()[:300])
             break
     if not any(server.glob(f"*/serverconfig/{MOD_ID}-server.toml")):
-        problems.append("the per-world server config was not written")
-    detail = "; ".join(problems) if problems else f"ok (log: {log_path.relative_to(ROOT) if log_path.is_relative_to(ROOT) else log_path})"
-    return not problems, detail
+        problems["config"].append("the per-world server config was not written")
+    return problems, log_path
+
+
+def smoke(artifact: dict, matrix: dict, work: Path, overrides: dict[int, str]) -> tuple[bool, str]:
+    jar = ROOT / artifact["jar"].replace("{mod_version}", matrix["project"]["mod_version"])
+    if not jar.exists():
+        return False, f"missing {jar.relative_to(ROOT)}; build it first"
+    problems, log_path = run_server(artifact, matrix["installers"], jar, work, overrides)
+    found = [problem for checkpoint in CHECKPOINTS for problem in problems[checkpoint]]
+    shown = log_path.relative_to(ROOT) if log_path.is_relative_to(ROOT) else log_path
+    return not found, "; ".join(found) if found else f"ok (log: {shown})"
 
 
 def main() -> int:
@@ -187,7 +210,7 @@ def main() -> int:
     for node in nodes:
         started = time.monotonic()
         try:
-            ok, detail = smoke(by_node[node], matrix["project"]["mod_version"], args.work_dir.resolve(), overrides)
+            ok, detail = smoke(by_node[node], matrix, args.work_dir.resolve(), overrides)
         except Exception as error:  # an installer or download failure is a failed lane, not a crash
             ok, detail = False, f"{type(error).__name__}: {error}"
         print(f"{node:18} {'PASS' if ok else 'FAIL'} in {time.monotonic() - started:.0f}s  {detail}", flush=True)
