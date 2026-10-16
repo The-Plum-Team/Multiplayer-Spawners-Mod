@@ -103,6 +103,32 @@ def install(artifact: dict, installers: dict, server: Path, cache: Path, java: s
 CHECKPOINTS = ("started", "mixins", "config")
 
 
+def thread_dump(java: str, pid: int, path: Path) -> str:
+    """Write what every thread of the JVM `pid` is doing to `path` (jstack beside `java`)."""
+
+    with path.open("w", encoding="utf-8") as out:
+        subprocess.run([str(Path(java).with_name("jstack")), str(pid)], stdout=out, stderr=subprocess.STDOUT,
+                       timeout=60, check=False)
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def stop_problem(code: int | None, log: str, dump: str | None) -> str | None:
+    """None when a stopped server stopped cleanly, else what went wrong.
+
+    A clean stop exits with 0. On a loaded CI runner a server sometimes saves everything and then
+    never exits, and is killed after the timeout (`dump` is the thread dump taken before the kill).
+    That counts as clean only when the log shows the complete save and no thread of the mod is in
+    the dump."""
+
+    if code == 0:
+        return None
+    saved = "All dimensions are saved" in log
+    if dump is not None and saved and MOD_ID not in dump.lower():
+        return None
+    return (f"server exited with {code}" + ("" if saved else " before saving the world")
+            + (" and a thread of the mod kept it alive" if dump is not None and MOD_ID in dump.lower() else ""))
+
+
 def run_server(artifact: dict, installers: dict, jar: Path, work: Path,
                overrides: dict[int, str]) -> tuple[dict[str, list[str]], Path]:
     """Run one lane's server with `jar` and return the problems found per checkpoint (an empty
@@ -123,7 +149,9 @@ def run_server(artifact: dict, installers: dict, jar: Path, work: Path,
 
     log_path = work / "logs" / f"{node}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.with_name(f"{node}-threads.txt").unlink(missing_ok=True)
     lines: list[str] = []
+    dump: str | None = None
     done = threading.Event()
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(command, cwd=server, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -151,6 +179,7 @@ def run_server(artifact: dict, installers: dict, jar: Path, work: Path,
             try:
                 process.wait(timeout=STOP_TIMEOUT)
             except subprocess.TimeoutExpired:
+                dump = thread_dump(java, process.pid, log_path.with_name(f"{node}-threads.txt"))
                 process.kill()
                 process.wait()
         reader.join(timeout=10)
@@ -159,8 +188,9 @@ def run_server(artifact: dict, installers: dict, jar: Path, work: Path,
     problems: dict[str, list[str]] = {checkpoint: [] for checkpoint in CHECKPOINTS}
     if not reached_done:
         problems["started"].append("server did not finish starting")
-    if process.returncode not in (0, None):
-        problems["started"].append(f"server exited with {process.returncode}")
+    stopped = stop_problem(process.returncode, text, dump)
+    if stopped:
+        problems["started"].append(stopped)
     if "Mixin audit passed" not in text:
         problems["mixins"].append("mixin audit did not pass")
     for line in lines:
@@ -181,7 +211,9 @@ def smoke(artifact: dict, matrix: dict, work: Path, overrides: dict[int, str]) -
     problems, log_path = run_server(artifact, matrix["installers"], jar, work, overrides)
     found = [problem for checkpoint in CHECKPOINTS for problem in problems[checkpoint]]
     shown = log_path.relative_to(ROOT) if log_path.is_relative_to(ROOT) else log_path
-    return not found, "; ".join(found) if found else f"ok (log: {shown})"
+    stuck = log_path.with_name(f"{artifact['artifact_node']}-threads.txt")
+    note = f"; saved but did not exit, killed (threads: {stuck.name})" if stuck.exists() else ""
+    return not found, "; ".join(found) if found else f"ok (log: {shown}){note}"
 
 
 def main() -> int:

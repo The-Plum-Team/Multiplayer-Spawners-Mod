@@ -100,6 +100,32 @@ what a player sees or is told, update the text or visual expectation in that scr
 needs Xvfb, xdotool and `e2e/requirements.txt` (installed with `--require-hashes`); CI runs it in
 every version job and keeps the screenshots for seven days.
 
+## Project site (mod-base Pages)
+
+The project site at https://the-plum-team.github.io/Multiplayer-Spawners-Mod/ publishes the
+multiplayer test's captures through the pinned kit.
+
+- The `evidence` section of `e2e/scenario-contract.json` declares what is published: the scenario,
+  its roles (the players), their ordered steps with each capture's title, expectation and review
+  tier, and the comparisons between two captures of one role. The Build gate ignores it.
+- `scripts/e2e/multiplayer.py` records each declared capture only from a check that passed, with
+  that check's message, and writes `runs/<node>/multiplayer/report.json` and `<role>/<step>.png`
+  below `build/multiplayer/evidence` when the whole lane passes (its `evidence` checkpoint).
+- `scripts/pages/mod_base_adapter.py` maps them for the kit: one key per Minecraft version
+  (`mc<minecraft>`), one lane per artifact node. `scripts/pages/mod_base_fixtures.py` synthesizes
+  the same tree for the kit's conformance simulation.
+- `.github/workflows/ci.yml` is the source workflow: on `main` its `Prepare public evidence for
+  mc<minecraft>` jobs run the kit's `prepare-evidence` and `notify-pages` wakes `pages.yml`, which
+  admits, re-verifies and deploys. Disabling `pages.yml` is the kill switch.
+
+Adding, renaming or removing a capture is one change of the contract and of the
+`self.capture`/`expect_view(capture=...)` call in `multiplayer.py` that takes it. Check the adapter
+with the kit's simulation (it needs Pillow 12.3, as in `e2e/requirements.txt`):
+
+```bash
+python3 scripts/ci/mod_base_kit.py run conformance --repo . --keys mc1.20.1,mc26.3
+```
+
 ## mod-base Build adapter
 
 `scripts/ci/mod-base-build.json` connects this mod to mod-base's shared Build and packaged E2E

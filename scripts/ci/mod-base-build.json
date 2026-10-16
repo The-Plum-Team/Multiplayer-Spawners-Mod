@@ -4,7 +4,7 @@
     "files": [
       {
         "path": "scripts/ci/mod_base_build_adapter.py",
-        "sha256": "58053cbf2df3e5f1cacf868cc2c00f65fae2b763f38adc2f93e42ef92476342b"
+        "sha256": "c7d6fff51877518e53326a4dc72876d4abcdf2b09561ec758a7a74299eda3ebc"
       },
       {
         "path": "scripts/ci/mod_base_build_dispatch.py",
