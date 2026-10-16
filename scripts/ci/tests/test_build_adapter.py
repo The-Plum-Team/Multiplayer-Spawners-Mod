@@ -81,6 +81,8 @@ class PlanTest(unittest.TestCase):
         source = kit_src()
         if source is None:
             self.skipTest("the pinned kit is not available")
+        # A verified kit must never gain bytecode.
+        sys.dont_write_bytecode = True
         sys.path.insert(0, str(source))
         from mod_base.build_ci.protocol import validate_plan_units  # noqa: PLC0415
 

@@ -50,10 +50,35 @@ run builds one Minecraft version, chosen with `-PmpsTarget` (default: the matrix
 ./gradlew -PmpsTarget=1.21.1 buildTarget          # the jars of one version
 python3 scripts/release/build_matrix.py           # every version, one Gradle run each
 python3 scripts/e2e/server_smoke.py --minecraft 1.21.1   # start a real server with those jars
+python3 scripts/e2e/multiplayer.py --minecraft 1.21.1    # play them with three real clients
 ```
 
 Jars land in `<loader>/versions/<minecraft>/build/libs/`. Gradle finds the Java 17, 21 and 25
 toolchains it needs on the machine.
+
+### Testing
+
+CI runs two tests on every lane (34 of them, see the table above) with the production jars:
+
+- `scripts/e2e/server_smoke.py` starts the loader's real dedicated server, makes every mixin
+  apply and checks that the config file is written.
+- `scripts/e2e/multiplayer.py` plays the mod. It starts the dedicated server and three real
+  Minecraft clients (Alice, Bob and Carol) of the same loader, each on its own virtual display,
+  that join it. The players act with real mouse and keyboard input (xdotool), and the test checks
+  what the server stores and what each player sees: a hit disables a spawner for the player and
+  the players near them but not for the others, the spawner stops spawning only while nobody it is
+  active for is near, each player sees it their own way (also after a restart and a rejoin), the
+  chat link breaks it, a torch near it goes out, and a spawner a player places stays vanilla. The
+  script's docstring lists every checkpoint; the screenshots of what each player saw are kept with
+  the CI run.
+
+The multiplayer test needs Xvfb, xdotool and the hash-locked packages of `e2e/requirements.txt`:
+
+```bash
+sudo apt-get install xvfb xdotool
+python3 -m pip install --only-binary=:all: --require-hashes -r e2e/requirements.txt
+python3 scripts/e2e/multiplayer.py fabric-1.21.1       # one lane; --minecraft or --all for more
+```
 
 ### Version-specific code
 
@@ -73,7 +98,7 @@ them while the sources are generated. Resource format changes (`loot_tables` →
 definitions from 1.21.4) are handled in [`common/build.gradle.kts`](common/build.gradle.kts).
 
 To add a Minecraft version, add its lanes to `release/release-matrix.json`, run
-`python3 scripts/release/matrix.py` to validate it, then build and smoke-test that version.
+`python3 scripts/release/matrix.py` to validate it, then build that version and run both tests on it.
 
 ## License
 

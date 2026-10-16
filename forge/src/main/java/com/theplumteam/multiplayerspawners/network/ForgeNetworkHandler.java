@@ -3,6 +3,7 @@ package com.theplumteam.multiplayerspawners.network;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.NetworkRegistry;
@@ -35,8 +36,15 @@ public class ForgeNetworkHandler extends NetworkHandler {
         channel.send(PacketDistributor.PLAYER.with(() -> player), packet);
     }
 
+    /**
+     * Sends to the players tracking the chunk at `pos` without asking the level for that chunk:
+     * this also runs from the chunk's own load event, and looking the loading chunk up from there
+     * waits for itself forever.
+     */
     @Override
     protected void sendToPlayersTracking(ServerLevel level, BlockPos pos, SpawnerStatePacket packet) {
-        channel.send(PacketDistributor.TRACKING_CHUNK.with(() -> level.getChunkAt(pos)), packet);
+        for (ServerPlayer player : level.getChunkSource().chunkMap.getPlayers(new ChunkPos(pos), false)) {
+            sendToPlayer(player, packet);
+        }
     }
 }
