@@ -1,3 +1,5 @@
+import org.gradle.language.jvm.tasks.ProcessResources
+
 // Shared by the loader nodes (fabric, forge, neoforge) after lane-conventions.gradle.kts.
 val loaderName = project.parent!!.name
 val minecraftVersion = extra["mpsMinecraft"].toString()
@@ -31,3 +33,28 @@ extra["mpsMetadataExpansions"] = mapOf(
     "sources" to modProject["sources"].toString(),
     "issues" to modProject["issues"].toString(),
 )
+
+// The shared CI (mod-base) passes -PmpsBuildIdentity=<json>: which commit, tree and lane this jar
+// was built from. It is embedded so that a later step can tell the jar it tests is the one built.
+// Local builds pass nothing and embed nothing.
+val buildIdentity = providers.gradleProperty("mpsBuildIdentity").orNull
+if (buildIdentity != null) {
+    val identityDir = layout.buildDirectory.dir("generated/build-identity")
+    val writeIdentity = tasks.register("writeBuildIdentity") {
+        inputs.property("identity", buildIdentity)
+        outputs.dir(identityDir)
+        doLast {
+            // The CI names the build; this jar adds which lane and role it is.
+            @Suppress("UNCHECKED_CAST")
+            val fields = groovy.json.JsonSlurper().parseText(buildIdentity) as Map<String, Any?>
+            val identity = (fields + mapOf("lane" to "$loaderName-$minecraftVersion", "role" to "production")).toSortedMap()
+            val file = identityDir.get().asFile.resolve("META-INF/multiplayerspawners-build.json")
+            file.parentFile.mkdirs()
+            file.writeText(groovy.json.JsonOutput.toJson(identity) + "\n")
+        }
+    }
+    tasks.named<ProcessResources>("processResources") {
+        dependsOn(writeIdentity)
+        from(identityDir)
+    }
+}

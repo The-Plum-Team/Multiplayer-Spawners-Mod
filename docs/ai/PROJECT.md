@@ -88,3 +88,24 @@ python3 scripts/release/build_matrix.py && python3 scripts/e2e/server_smoke.py -
 The server smoke test starts each lane's real dedicated server with the production jar and makes
 Mixin apply every mixin at start (`-Dmultiplayerspawners.mixinAudit=true`). Client-only mixins do
 not load on a server; check their targets against every version when changing them.
+
+## mod-base Build adapter
+
+`scripts/ci/mod-base-build.json` connects this mod to mod-base's shared Build and packaged E2E
+gates; `site/mod-base-build-activation.json` holds the mode (`disabled` until the gate
+environment exists, then `shadow`, then `shared-build-and-e2e`).
+
+- `scripts/ci/mod_base_build_adapter.py` is everything the hooks know about the mod: one target
+  per Minecraft version, one lane per artifact node, and the obligations of
+  `e2e/scenario-contract.json` (the server smoke test's checkpoints).
+- `scripts/ci/mod_base_build_dispatch.py` runs a hook. `build_target` builds a copy of the tracked
+  tree below `$TMPDIR`, because a candidate hook must leave its checkout untouched, and passes
+  `-PmpsBuildIdentity` so that each jar embeds the commit it was built from. `run_lane` runs the
+  server smoke test against the sealed jar.
+- After changing any adapter file run `python3 scripts/ci/update_build_config.py`: the kit runs
+  protected hooks only from files whose SHA-256 the config lists.
+- `python3 scripts/ci/local_build_run.py <minecraft>` runs every hook of one target locally, in the
+  kit's directory layout, and checks that candidate hooks leave the checkout untouched.
+- `scripts/ci/tests` holds the adapter's tests; the `policy` hook runs them with the matrix
+  validator.
+
