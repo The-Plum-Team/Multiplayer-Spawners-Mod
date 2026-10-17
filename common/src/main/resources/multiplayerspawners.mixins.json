@@ -8,6 +8,7 @@
     "BlockItemMixin",
     "BlockMixin",
     "LevelChunkMixin",
+    "LevelMixin",
     "ServerPlayerGameModeMixin",
     "SpawnerBlockEntityMixin",
     "SpawnerTickMixin"

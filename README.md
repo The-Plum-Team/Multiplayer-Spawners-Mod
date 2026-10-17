@@ -12,6 +12,11 @@ stays active for everyone else, so every player gets to clear the same dungeon.
   number of minutes (off by default), like Lootr's loot refresh.
 - **Player-placed spawners** can behave like vanilla ones.
 
+**Works with** [Apothic Spawners](https://modrinth.com/mod/apothic-spawners) (its spawners are
+disabled per player like vanilla ones, within their own activation range) and
+[Ageing Spawners](https://modrinth.com/mod/ageing-spawners): a spawner that runs out is disabled for
+the players who used it up and stays for everyone else, instead of disappearing for the whole server.
+
 The [project site](https://the-plum-team.github.io/Multiplayer-Spawners-Mod/) shows what three real
 players saw while testing every supported Minecraft version and loader on a dedicated server.
 
