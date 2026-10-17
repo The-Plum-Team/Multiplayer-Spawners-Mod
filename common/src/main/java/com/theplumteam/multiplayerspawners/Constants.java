@@ -6,6 +6,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Constants {
+	// Deliberately broken (do not merge): checks that the shared gates report a failure.
+	private static final int DELIBERATELY_BROKEN = "not an int";
+
 	public static final String MOD_ID = "multiplayerspawners";
 	public static final String MOD_NAME = "MultiplayerSpawners";
 	public static final Logger LOG = LoggerFactory.getLogger(MOD_NAME);
