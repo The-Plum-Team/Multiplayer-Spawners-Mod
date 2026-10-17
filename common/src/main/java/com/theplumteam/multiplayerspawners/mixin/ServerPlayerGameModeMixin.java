@@ -69,6 +69,7 @@ public abstract class ServerPlayerGameModeMixin {
         Constants.debug("Spawner at {} has been permanently disabled by player {}", pos, playerName);
 
         multiplayerspawners$triggerImmediateClientFeedback(level, pos, player);
+        multiplayerspawners$sendRespawnNotice(player);
 
         if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
             SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
@@ -83,6 +84,16 @@ public abstract class ServerPlayerGameModeMixin {
         if (ModConfig.SERVER.enableGroupDisabling.get()) {
             int radius = ModConfig.SERVER.groupDisablingRadius.get();
             multiplayerspawners$handleGroupDisabling(level, pos, player, radius);
+        }
+    }
+
+    /** Tells the player when the spawner they disabled becomes active again, if it ever does. */
+    @Unique
+    private static void multiplayerspawners$sendRespawnNotice(ServerPlayer player) {
+        int minutes = ModConfig.SERVER.spawnerRespawnMinutes.get();
+        if (minutes > 0) {
+            player.sendSystemMessage(Component.literal("It will be active for you again in " + minutes
+                    + (minutes == 1 ? " minute." : " minutes.")).withStyle(ChatFormatting.GRAY));
         }
     }
 
@@ -240,6 +251,7 @@ public abstract class ServerPlayerGameModeMixin {
 
                 multiplayerspawners$forceVisualStateRefresh(world, pos, this.player);
                 player.sendSystemMessage(Component.literal("It will no longer spawn creatures while you are nearby.").withStyle(ChatFormatting.RED));
+                multiplayerspawners$sendRespawnNotice(this.player);
                 cir.setReturnValue(false);
                 cir.cancel();
                 return;

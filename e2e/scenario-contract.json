@@ -67,7 +67,10 @@
                            "expectation": "After Carol hits the spawner the others disabled, it is disabled for her as well: the vanilla spawner with no mob inside."}},
               {"id": "s2_rejoined",
                "capture": {"title": "Carol's spawner after a restart", "review_tier": "all",
-                           "expectation": "After the restart and rejoin, the spawner Carol disabled on her own is still the vanilla spawner for her."}}
+                           "expectation": "After the restart and rejoin, the spawner Carol disabled on her own is still the vanilla spawner for her."}},
+              {"id": "s2_respawned",
+               "capture": {"title": "Carol's spawner respawned", "review_tier": "key",
+                           "expectation": "With a respawn time of one minute set, the spawner Carol disabled is active for her again without rejoining: the golden spawner with its mob inside."}}
             ],
             "comparisons": [
               {"id": "s1_view_changed", "first": "s1_active", "second": "s1_disabled", "minimum_changed_fraction": 0.01}

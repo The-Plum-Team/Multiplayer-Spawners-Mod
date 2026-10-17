@@ -23,6 +23,7 @@ The scenario, in the order it runs (each checkpoint fails the lane on its own):
   persistence       after a server restart the spawners still know who disabled them
   join-sync         rejoining players see each spawner the way it is for them
   break-link        Bob clicks the chat link and the spawner is removed
+  respawn           with a respawn time set, a disabled spawner becomes active again for its player
   torch             a torch Alice places next to a spawner is put out
   player-placed     a spawner Alice places is treated as vanilla and breaks normally
   stopped           the server stops cleanly and nothing logged an error from the mod
@@ -81,7 +82,7 @@ RCON_PASSWORD = "multiplayerspawners-e2e"
 
 CHECKPOINTS = ("joined", "initial-view", "spawns", "group-disable", "per-player-view", "suppressed",
                "active-for-others", "break-message", "joined-disable", "persistence", "join-sync",
-               "break-link", "torch", "player-placed", "stopped", "evidence")
+               "break-link", "respawn", "torch", "player-placed", "stopped", "evidence")
 
 # The world is a flat world: the ground is the grass block layer at y=-61, players stand at y=-60.
 FEET = -60
@@ -828,6 +829,31 @@ class Lane:
         self.capture("Bob", "break_link", "05-bob-chat-open",
                      f"Bob's open chat shows the red break link at {position[0]},{position[1]}; clicking it removed "
                      f"the spawner at {S1[0]} {S1[1]} {S1[2]} and the chat said: Spawner successfully broken and removed!")
+
+    def step_respawn(self) -> None:
+        # Only Carol has disabled S2, before the restart: more than a minute ago, so with a respawn
+        # time of one minute it becomes active again for her within a second or so.
+        answer = self.run(f"{MOD_ID} respawn 1")
+        self.check("after 1 minutes" in answer, f"the respawn command answered {answer!r}")
+        self.park("Alice", S2)
+        self.park("Bob", S2, 40)
+        self.wait_for("S2 to be active again for Carol", lambda: not self.disabled_players(S2), 75)
+        self.expect_view("Carol", S2, (3, 0), "07-carol-s2-respawned", active=True, capture="s2_respawned",
+                         context=" again after the one-minute respawn time, without rejoining")
+        # A new hit disables it again, tells her when it comes back, and it does one minute later.
+        carol = len(self.clients["Carol"].chat())
+        self.hit("Carol", S2, (3, 0))
+        disabled_at = time.monotonic()
+        self.wait_for("Carol in S2's DisabledPlayers again", lambda: self.disabled_players(S2) == {"Carol"}, 10)
+        self.expect_chat("Carol", "It will be active for you again in 1 minute.", carol)
+        self.expect_view("Carol", S2, (3, 0), "07-carol-s2-disabled-again", active=False)
+        self.wait_for("S2 to be active again for Carol a minute later", lambda: not self.disabled_players(S2), 90, 1)
+        elapsed = time.monotonic() - disabled_at
+        self.check(55 <= elapsed, f"S2 was active again {elapsed:.0f} s after Carol's hit, before the minute passed")
+        self.expect_view("Carol", S2, (3, 0), "07-carol-s2-respawned-again", active=True)
+        self.notes.append(f"respawn: S2 active again {elapsed:.0f} s after Carol's hit")
+        answer = self.run(f"{MOD_ID} respawn 0")
+        self.check("DISABLED" in answer, f"turning respawn off answered {answer!r}")
 
     def step_torch(self) -> None:
         answer = self.run(f"{MOD_ID} torch delay 3")
