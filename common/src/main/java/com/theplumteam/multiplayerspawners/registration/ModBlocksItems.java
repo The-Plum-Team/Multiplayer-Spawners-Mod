@@ -7,6 +7,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.StandingAndWallBlockItem;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.PushReaction;
 //? if >=1.21.2 {
@@ -31,6 +32,13 @@ public class ModBlocksItems {
             *///?}
 
     /**
+     * How Quark's monster box looks to a player it is used up for (the colours of the vanilla
+     * spawner, as a disabled spawner looks). Only the client ever places it, in place of the box.
+     */
+    public static final Supplier<Block> USED_MONSTER_BOX = Services.PLATFORM.registerBlock("used_monster_box",
+            () -> new Block(usedMonsterBoxProperties()));
+
+    /**
      * Called by CommonClass.init() so that the static fields above, and with them the
      * registrations, run at the right time.
      */
@@ -50,6 +58,18 @@ public class ModBlocksItems {
         //? if >=1.21.2 {
         // From 1.21.2 a block knows its own registry key from construction.
         properties = properties.setId(ResourceKey.create(Registries.BLOCK, Constants.id(name)));
+        //?}
+        return properties;
+    }
+
+    /** As Quark's monster box, so that mining it looks the same on the client. */
+    private static BlockBehaviour.Properties usedMonsterBoxProperties() {
+        BlockBehaviour.Properties properties = BlockBehaviour.Properties.of()
+                .strength(25F)
+                .sound(SoundType.METAL)
+                .noOcclusion();
+        //? if >=1.21.2 {
+        properties = properties.setId(ResourceKey.create(Registries.BLOCK, Constants.id("used_monster_box")));
         //?}
         return properties;
     }

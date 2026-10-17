@@ -15,10 +15,11 @@ public class MultiplayerSpawnersForgeClient {
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {
-        // The unlit torch textures have transparent pixels.
+        // The unlit torch and used monster box textures have transparent pixels.
         event.enqueueWork(() -> {
             ItemBlockRenderTypes.setRenderLayer(ModBlocksItems.UNLIT_TORCH.get(), RenderType.cutout());
             ItemBlockRenderTypes.setRenderLayer(ModBlocksItems.UNLIT_WALL_TORCH.get(), RenderType.cutout());
+            ItemBlockRenderTypes.setRenderLayer(ModBlocksItems.USED_MONSTER_BOX.get(), RenderType.cutout());
         });
     }
 }

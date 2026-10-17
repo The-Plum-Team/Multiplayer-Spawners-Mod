@@ -19,13 +19,15 @@ public class MultiplayerSpawnersFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        // The unlit torch textures have transparent pixels. From 26.1 the game derives the layer
+        // The unlit torch and used monster box textures have transparent pixels. From 26.1 the game derives the layer
         // from the texture itself.
         //? if >=1.21.6 && <26.1 {
-        BlockRenderLayerMap.putBlocks(ChunkSectionLayer.CUTOUT, ModBlocksItems.UNLIT_TORCH.get(), ModBlocksItems.UNLIT_WALL_TORCH.get());
+        BlockRenderLayerMap.putBlocks(ChunkSectionLayer.CUTOUT, ModBlocksItems.UNLIT_TORCH.get(), ModBlocksItems.UNLIT_WALL_TORCH.get(),
+                ModBlocksItems.USED_MONSTER_BOX.get());
         //?} else if <1.21.6 {
         /*BlockRenderLayerMap.INSTANCE.putBlock(ModBlocksItems.UNLIT_TORCH.get(), RenderType.cutout());
         BlockRenderLayerMap.INSTANCE.putBlock(ModBlocksItems.UNLIT_WALL_TORCH.get(), RenderType.cutout());
+        BlockRenderLayerMap.INSTANCE.putBlock(ModBlocksItems.USED_MONSTER_BOX.get(), RenderType.cutout());
         *///?}
 
         FabricNetworkHandler.initClient();

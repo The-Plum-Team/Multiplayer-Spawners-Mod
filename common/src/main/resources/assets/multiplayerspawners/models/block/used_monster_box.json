@@ -1,0 +1,6 @@
+{
+  "parent": "block/cube_all",
+  "textures": {
+    "all": "multiplayerspawners:block/used_monster_box"
+  }
+}

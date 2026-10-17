@@ -3,6 +3,8 @@ package com.theplumteam.multiplayerspawners.client;
 import java.util.ArrayList;
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.block.SpawnerStateProperties;
+import com.theplumteam.multiplayerspawners.registration.ModBlocksItems;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
@@ -25,6 +27,11 @@ public class ClientSpawnerData {
     private static final Set<BlockPos> vanillaTreatedSpawners = new HashSet<>();
     /** Single-use spawners of other mods that are used up for the current player. */
     private static final Set<BlockPos> usedUpOneShots = new HashSet<>();
+    /** The blocks the client replaced with their used-up look, to put back if that changes. */
+    private static final Map<BlockPos, BlockState> replacedByUsedLook = new HashMap<>();
+
+    /** Quark's monster box, which gets a used-up look (multiplayerspawners:used_monster_box). */
+    private static final String MONSTER_BOX = "quark:monster_box";
 
     private static String cachedPlayerName = null;
     private static String currentDimension = null;
@@ -128,13 +135,44 @@ public class ClientSpawnerData {
         }
     }
 
-    /** A single-use spawner's state: only remembered, the block itself is left alone. */
+    /**
+     * A single-use spawner's state. Spawner logic never touches these blocks; a block with a used-up
+     * look (Quark's monster box) shows it to a player it is used up for.
+     */
     public static void updateOneShotState(BlockPos pos, Set<String> usedBy) {
         String currentPlayerName = getCurrentPlayerName();
         if (currentPlayerName != null && usedBy.contains(currentPlayerName)) {
             usedUpOneShots.add(pos.immutable());
         } else {
             usedUpOneShots.remove(pos);
+        }
+        applyUsedLook(pos);
+    }
+
+    /**
+     * The look a block arriving at {@code pos} must have on this client: its used-up look when it is
+     * a single-use spawner used up for the current player, else {@code state} itself.
+     */
+    public static BlockState usedLookFor(BlockPos pos, BlockState state) {
+        if (usedUpOneShots.contains(pos) && MONSTER_BOX.equals(BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString())) {
+            replacedByUsedLook.put(pos.immutable(), state);
+            return ModBlocksItems.USED_MONSTER_BOX.get().defaultBlockState();
+        }
+        return state;
+    }
+
+    private static void applyUsedLook(BlockPos pos) {
+        var minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || !minecraft.level.isLoaded(pos)) return;
+        BlockState current = minecraft.level.getBlockState(pos);
+        BlockState wanted = usedLookFor(pos, current);
+        if (wanted != current) {
+            minecraft.level.setBlock(pos, wanted, 3);
+        } else if (!usedUpOneShots.contains(pos) && current.is(ModBlocksItems.USED_MONSTER_BOX.get())) {
+            BlockState original = replacedByUsedLook.remove(pos);
+            if (original != null) {
+                minecraft.level.setBlock(pos, original, 3);
+            }
         }
     }
 
@@ -155,6 +193,7 @@ public class ClientSpawnerData {
         spawnersNeedingUpdate.clear();
         vanillaTreatedSpawners.clear();
         usedUpOneShots.clear();
+        replacedByUsedLook.clear();
         cachedPlayerName = null;
         currentDimension = null;
         lastPeriodicRefresh = 0;
@@ -169,6 +208,11 @@ public class ClientSpawnerData {
 
     public static void onChunkLoaded(int chunkX, int chunkZ) {
         refreshSpawnersInChunk(chunkX, chunkZ);
+        for (BlockPos pos : new ArrayList<>(usedUpOneShots)) {
+            if ((pos.getX() >> 4) == chunkX && (pos.getZ() >> 4) == chunkZ) {
+                applyUsedLook(pos);
+            }
+        }
     }
 
     private static void refreshSpawnersInChunk(int chunkX, int chunkZ) {
