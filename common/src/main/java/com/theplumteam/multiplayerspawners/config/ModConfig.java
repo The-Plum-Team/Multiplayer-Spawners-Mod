@@ -40,6 +40,7 @@ public final class ModConfig {
         public final IntValue requiredBreakAttempts;
         public final BooleanValue treatPlacedSpawnersAsVanilla;
         public final IntValue spawnerRespawnMinutes;
+        public final BooleanValue showNotices;
 
         private ServerConfig() {
             push("general", "MultiplayerSpawners Configuration");
@@ -56,6 +57,10 @@ public final class ModConfig {
                     "Minutes after which a spawner a player disabled becomes active again for that player.",
                     "Counted in game time, while the server runs. 0 = never: a disabled spawner stays disabled.",
                     "Use /multiplayerspawners respawn <minutes> to change this in-game.");
+            showNotices = define("showNotices", true,
+                    "If false, the mod sends no informational chat messages (a spawner was disabled for you or nearby",
+                    "players, when it comes back, when it ran out). The message with the break link is still sent.",
+                    "Use /multiplayerspawners toggle_notices to change this in-game.");
 
             push("breaking", "Breaking Mechanics");
             requiredBreakAttempts = defineInRange("requiredBreakAttempts", 2, 1, 10,

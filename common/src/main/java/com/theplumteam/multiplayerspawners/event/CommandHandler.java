@@ -138,6 +138,24 @@ public class CommandHandler {
                             return 1;
                         })
                 )
+                .then(Commands.literal("toggle_notices")
+                        .requires(CommandHandler::isGamemaster)
+                        .executes(context -> {
+                            boolean newValue = !ModConfig.SERVER.showNotices.get();
+                            ModConfig.SERVER.showNotices.set(newValue);
+
+                            // EXPLICITLY SAVE TO DISK
+                            saveServerConfig();
+
+                            context.getSource().sendSuccess(() -> Component.literal("Spawner chat notices are now " + (newValue ? "ON" : "OFF"))
+                                    .withStyle(newValue ? ChatFormatting.GREEN : ChatFormatting.GOLD), true);
+                            if (!newValue) {
+                                context.getSource().sendSuccess(() -> Component.literal("Players are no longer told when a spawner is disabled for them, comes back or runs out. The break link is still offered.")
+                                        .withStyle(ChatFormatting.GRAY), false);
+                            }
+                            return 1;
+                        })
+                )
                 .then(Commands.literal("allow_break")
                         .then(Commands.argument("x", com.mojang.brigadier.arguments.IntegerArgumentType.integer())
                                 .then(Commands.argument("y", com.mojang.brigadier.arguments.IntegerArgumentType.integer())

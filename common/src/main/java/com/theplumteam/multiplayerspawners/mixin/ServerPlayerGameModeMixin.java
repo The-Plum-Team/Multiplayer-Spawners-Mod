@@ -5,6 +5,7 @@ import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
+import com.theplumteam.multiplayerspawners.util.Notices;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import com.theplumteam.multiplayerspawners.util.SpawnerStateManager;
 import net.minecraft.core.BlockPos;
@@ -92,7 +93,7 @@ public abstract class ServerPlayerGameModeMixin {
     private static void multiplayerspawners$sendRespawnNotice(ServerPlayer player) {
         int minutes = ModConfig.SERVER.spawnerRespawnMinutes.get();
         if (minutes > 0) {
-            player.sendSystemMessage(Component.literal("It will be active for you again in " + minutes
+            Notices.send(player, Component.literal("It will be active for you again in " + minutes
                     + (minutes == 1 ? " minute." : " minutes.")).withStyle(ChatFormatting.GRAY));
         }
     }
@@ -126,7 +127,7 @@ public abstract class ServerPlayerGameModeMixin {
                 if (!SpawnerStateManager.isSpawnerDisabledForPlayer(level, spawnerPos, nearbyPlayerName)) {
                     SpawnerStateManager.disableSpawnerForPlayer(level, spawnerPos, nearbyPlayerName);
                     playersAffected++;
-                    serverPlayer.sendSystemMessage(
+                    Notices.send(serverPlayer,
                             Component.literal("A spawner in this area has been disabled by " + triggeringPlayer.getName().getString() + ".").withStyle(ChatFormatting.GOLD));
                 }
             }
@@ -139,7 +140,7 @@ public abstract class ServerPlayerGameModeMixin {
                     && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
 
             NetworkHandler.getInstance().sendSpawnerStateToTracking(level, spawnerPos, disabledPlayers, treatedAsVanilla);
-            triggeringPlayer.sendSystemMessage(
+            Notices.send(triggeringPlayer,
                     Component.literal("Group disabling: Spawner disabled for " + playersAffected + " nearby player(s).").withStyle(ChatFormatting.GOLD));
         }
     }
@@ -253,7 +254,7 @@ public abstract class ServerPlayerGameModeMixin {
                 }
 
                 multiplayerspawners$forceVisualStateRefresh(world, pos, this.player);
-                player.sendSystemMessage(Component.literal("It will no longer spawn creatures while you are nearby.").withStyle(ChatFormatting.RED));
+                Notices.send(player, Component.literal("It will no longer spawn creatures while you are nearby.").withStyle(ChatFormatting.RED));
                 multiplayerspawners$sendRespawnNotice(this.player);
                 cir.setReturnValue(false);
                 cir.cancel();
