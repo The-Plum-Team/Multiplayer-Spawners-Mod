@@ -1,10 +1,13 @@
 package com.theplumteam.multiplayerspawners.util;
 
+import com.theplumteam.multiplayerspawners.config.ModConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -37,6 +40,7 @@ public class SpawnerStateManager {
         if (accessor != null) {
             Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
             if (disabledPlayers.add(playerName)) {
+                accessor.multiplayerspawners$getDisabledTimes().put(playerName, level.getGameTime());
                 // Mark the block entity as dirty to ensure it saves
                 level.getBlockEntity(pos).setChanged();
             }
@@ -78,10 +82,58 @@ public class SpawnerStateManager {
         SpawnerDataAccessor accessor = getAccessor(level, pos);
         if (accessor != null) {
             Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+            accessor.multiplayerspawners$getDisabledTimes().remove(playerName);
             if (disabledPlayers.remove(playerName)) {
                 // Mark the block entity as dirty to ensure it saves
                 level.getBlockEntity(pos).setChanged();
             }
         }
+    }
+
+    /** How long a spawner stays disabled for a player, in ticks, or 0 when it never becomes active again. */
+    public static long respawnTicks() {
+        return ModConfig.SERVER.spawnerRespawnMinutes.get() * 60L * 20L;
+    }
+
+    /**
+     * Makes the spawner active again for every player who disabled it at least
+     * {@code spawnerRespawnMinutes} ago. A player disabled before the spawner recorded times
+     * (an older version of the mod) starts counting now.
+     *
+     * @return whether a player was removed, so that the clients must be told
+     */
+    public static boolean expireDisabledPlayers(Level level, BlockPos pos, SpawnerDataAccessor accessor) {
+        Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+        Map<String, Long> times = accessor.multiplayerspawners$getDisabledTimes();
+        if (disabledPlayers.isEmpty()) {
+            times.clear();
+            return false;
+        }
+        long now = level.getGameTime();
+        boolean changed = times.keySet().retainAll(disabledPlayers);
+        for (String player : disabledPlayers) {
+            if (times.putIfAbsent(player, now) == null) {
+                changed = true;
+            }
+        }
+        boolean expired = false;
+        long respawnTicks = respawnTicks();
+        if (respawnTicks > 0) {
+            for (Iterator<String> players = disabledPlayers.iterator(); players.hasNext(); ) {
+                String player = players.next();
+                if (now - times.get(player) >= respawnTicks) {
+                    players.remove();
+                    times.remove(player);
+                    expired = true;
+                }
+            }
+        }
+        if (changed || expired) {
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity != null) {
+                blockEntity.setChanged();
+            }
+        }
+        return expired;
     }
 }

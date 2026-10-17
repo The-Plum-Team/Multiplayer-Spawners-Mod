@@ -2,6 +2,7 @@ package com.theplumteam.multiplayerspawners.mixin;
 
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
+import com.theplumteam.multiplayerspawners.network.NetworkHandler;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import com.theplumteam.multiplayerspawners.util.SpawnerStateManager;
 import net.minecraft.core.BlockPos;
@@ -14,12 +15,25 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.List;
+import java.util.Set;
 
 @Mixin(BaseSpawner.class)
 public abstract class BaseSpawnerMixin {
 
     @Inject(method = "serverTick", at = @At("HEAD"), cancellable = true)
     private void multiplayerspawners$onServerTick(ServerLevel level, BlockPos pos, CallbackInfo ci) {
+
+        // Once a second per spawner (spread over the ticks), make it active again for the players
+        // whose respawn time has passed, and tell the clients that see it.
+        if (Math.floorMod(level.getGameTime() + pos.asLong(), 20L) == 0 && (Object) this instanceof SpawnerDataAccessor accessor
+                && SpawnerStateManager.expireDisabledPlayers(level, pos, accessor)) {
+            Constants.debug("Spawner at {} is active again for some players; still disabled for {}", pos,
+                    accessor.multiplayerspawners$getDisabledPlayers());
+            boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
+                    && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
+            NetworkHandler.getInstance().sendSpawnerStateToTracking(level, pos,
+                    Set.copyOf(accessor.multiplayerspawners$getDisabledPlayers()), treatedAsVanilla);
+        }
 
         // Check if this spawner is player-placed and config allows vanilla behavior
         if (ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get()) {

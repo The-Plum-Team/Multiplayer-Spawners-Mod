@@ -39,6 +39,7 @@ public final class ModConfig {
         public final BooleanValue allowSpawnerBreakMessage;
         public final IntValue requiredBreakAttempts;
         public final BooleanValue treatPlacedSpawnersAsVanilla;
+        public final IntValue spawnerRespawnMinutes;
 
         private ServerConfig() {
             push("general", "MultiplayerSpawners Configuration");
@@ -51,6 +52,10 @@ public final class ModConfig {
                     "If true, spawners placed by players (not generated naturally) will behave like Vanilla spawners.",
                     "They will NOT extinguish torches and can be broken instantly by everyone.",
                     "Use /multiplayerspawners toggle_placed_vanilla to change this in-game.");
+            spawnerRespawnMinutes = defineInRange("spawnerRespawnMinutes", 0, 0, 43200,
+                    "Minutes after which a spawner a player disabled becomes active again for that player.",
+                    "Counted in game time, while the server runs. 0 = never: a disabled spawner stays disabled.",
+                    "Use /multiplayerspawners respawn <minutes> to change this in-game.");
 
             push("breaking", "Breaking Mechanics");
             requiredBreakAttempts = defineInRange("requiredBreakAttempts", 2, 1, 10,

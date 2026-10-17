@@ -189,6 +189,47 @@ public class CommandHandler {
                                 )
                         )
                 )
+                .then(Commands.literal("respawn")
+                        .requires(CommandHandler::isGamemaster)
+                        .then(Commands.argument("minutes", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 43200))
+                                .executes(context -> {
+                                    CommandSourceStack source = context.getSource();
+                                    int newMinutes = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(context, "minutes");
+                                    int oldMinutes = ModConfig.SERVER.spawnerRespawnMinutes.get();
+
+                                    ModConfig.SERVER.spawnerRespawnMinutes.set(newMinutes);
+
+                                    // EXPLICITLY SAVE TO DISK
+                                    saveServerConfig();
+
+                                    if (newMinutes == 0) {
+                                        source.sendSuccess(() -> Component.literal("Spawner respawn is now DISABLED. Disabled spawners stay disabled.")
+                                                .withStyle(ChatFormatting.GOLD), true);
+                                    } else {
+                                        source.sendSuccess(() -> Component.literal("Disabled spawners now become active again after " + newMinutes + " minutes (was " + oldMinutes + ")")
+                                                .withStyle(ChatFormatting.GREEN), true);
+                                    }
+                                    Constants.debug("Player {} changed spawnerRespawnMinutes from {} to {}",
+                                            source.getTextName(), oldMinutes, newMinutes);
+
+                                    return 1;
+                                })
+                        )
+                        .executes(context -> {
+                            CommandSourceStack source = context.getSource();
+                            int currentMinutes = ModConfig.SERVER.spawnerRespawnMinutes.get();
+
+                            if (currentMinutes == 0) {
+                                source.sendSuccess(() -> Component.literal("Spawner respawn is currently DISABLED: disabled spawners stay disabled.")
+                                        .withStyle(ChatFormatting.YELLOW), false);
+                            } else {
+                                source.sendSuccess(() -> Component.literal("Disabled spawners become active again after " + currentMinutes + " minutes.")
+                                        .withStyle(ChatFormatting.AQUA), false);
+                            }
+
+                            return 1;
+                        })
+                )
                 .then(Commands.literal("torch")
                         .requires(CommandHandler::isGamemaster)
                         .then(Commands.literal("delay")

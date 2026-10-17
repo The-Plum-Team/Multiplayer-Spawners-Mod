@@ -8,6 +8,8 @@ stays active for everyone else, so every player gets to clear the same dungeon.
 - **Breaking:** a disabled spawner can be broken through a clickable chat message (or always in
   Creative), after one or two hits.
 - **Torches:** a torch placed within 7 blocks of a spawner is put out after a delay.
+- **Respawn:** optionally, a disabled spawner becomes active again for its player after a set
+  number of minutes (off by default), like Lootr's loot refresh.
 - **Player-placed spawners** can behave like vanilla ones.
 
 The [project site](https://the-plum-team.github.io/Multiplayer-Spawners-Mod/) shows what three real
@@ -30,7 +32,7 @@ On Fabric the mod needs Fabric API.
 
 | File | Settings |
 |---|---|
-| `<world>/serverconfig/multiplayerspawners-server.toml` | group disabling and its radius, torch delay, break attempts, break message, vanilla player-placed spawners |
+| `<world>/serverconfig/multiplayerspawners-server.toml` | group disabling and its radius, respawn time, torch delay, break attempts, break message, vanilla player-placed spawners |
 | `config/multiplayerspawners-client.toml` | debug logging |
 
 Operators (level 2) can change the server settings in game; the change is saved to the file:
@@ -39,6 +41,7 @@ Operators (level 2) can change the server settings in game; the change is saved 
 /multiplayerspawners toggle_placed_vanilla
 /multiplayerspawners toggle_break_message
 /multiplayerspawners set_break_attempts <1-10>
+/multiplayerspawners respawn [<minutes>]
 /multiplayerspawners torch delay [<seconds>]
 /multiplayerspawners torch info
 ```
