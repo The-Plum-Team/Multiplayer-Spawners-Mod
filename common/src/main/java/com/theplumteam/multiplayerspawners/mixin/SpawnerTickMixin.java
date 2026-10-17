@@ -3,6 +3,7 @@ package com.theplumteam.multiplayerspawners.mixin;
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
+import com.theplumteam.multiplayerspawners.util.SpawnerAgeing;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import com.theplumteam.multiplayerspawners.util.SpawnerStateManager;
 import net.minecraft.core.BlockPos;
@@ -34,6 +35,8 @@ public abstract class SpawnerTickMixin {
         if (!(spawner instanceof SpawnerDataAccessor accessor)) {
             return;
         }
+        // Until the tick returns, a removal of this spawner may be Ageing Spawners ageing it out.
+        SpawnerAgeing.startTick(level, pos);
 
         // Once a second per spawner (spread over the ticks), make it active again for the players
         // whose respawn time has passed, and tell the clients that see it.
@@ -75,7 +78,13 @@ public abstract class SpawnerTickMixin {
 
         if (anyNear) {
             Constants.debug("Spawner at {} tick cancelled because all nearby players have it disabled.", pos);
+            SpawnerAgeing.endTick();
             ci.cancel();
         }
+    }
+
+    @Inject(method = "serverTick", at = @At("RETURN"))
+    private static void multiplayerspawners$afterServerTick(Level level, BlockPos pos, BlockState state, SpawnerBlockEntity blockEntity, CallbackInfo ci) {
+        SpawnerAgeing.endTick();
     }
 }
