@@ -185,7 +185,12 @@ def _build_target(checkout: Path, output: Output, target: str) -> None:
                f"-PmpsBuildIdentity={identity}", "-Porg.gradle.java.installations.auto-detect=false",
                "-Porg.gradle.java.installations.auto-download=false",
                f"-Porg.gradle.java.installations.paths={','.join(homes.values())}", "buildTarget"]
-    build = subprocess.run(command, cwd=work, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    if not homes:
+        raise adapter.AdapterError("no JDK installed (MB_JAVA_HOMES and JAVA_HOME name none)")
+    # Gradle itself runs on the newest JDK: the kit lists its JDKs oldest first, and Stonecutter
+    # needs Java 21 or newer. Each target still compiles with its own toolchain from the list.
+    environment = dict(os.environ, JAVA_HOME=homes[max(homes)])
+    build = subprocess.run(command, cwd=work, env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                            timeout=GRADLE_TIMEOUT)
     sys.stdout.write(build.stdout.decode("utf-8", "replace")[-20000:])
     if build.returncode != 0:
