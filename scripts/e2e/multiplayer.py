@@ -46,7 +46,8 @@ for the mod-base Pages adapter (scripts/pages/mod_base_adapter.py) below <work-d
 
 Requires Xvfb and xdotool, and the hash-locked packages of e2e/requirements.txt
 (python3 -m pip install --only-binary=:all: --require-hashes -r e2e/requirements.txt).
-Build the jars first (scripts/release/build_matrix.py). Everything goes below --work-dir
+Build the jars first (scripts/release/build_matrix.py). --extra-mod JAR (repeatable) also installs
+another mod on the server and every client, to check that the scenario still passes beside it. Everything goes below --work-dir
 (default build/multiplayer); the shared client install is reused between runs.
 """
 
@@ -150,7 +151,8 @@ def free_port() -> int:
 
 
 class Server:
-    def __init__(self, artifact: dict, matrix: dict, jar: Path, work: Path, java: str) -> None:
+    def __init__(self, artifact: dict, matrix: dict, jar: Path, work: Path, java: str,
+                 extra_mods: list[Path] = ()) -> None:
         self.artifact, self.work = artifact, work
         self.directory = work / "server"
         if self.directory.exists():
@@ -159,6 +161,8 @@ class Server:
         self.command = server_smoke.install(artifact, matrix["installers"], self.directory,
                                             work.parent.parent / "cache", java)
         shutil.copy(jar, self.directory / "mods")
+        for mod in extra_mods:
+            shutil.copy(mod, self.directory / "mods")
         (self.directory / "eula.txt").write_text("eula=true\n")
         self.port, self.rcon_port = free_port(), free_port()
         (self.directory / "server.properties").write_text(
@@ -493,7 +497,8 @@ def link_position(image) -> tuple[int, int] | None:
 
 
 class Lane:
-    def __init__(self, artifact: dict, matrix: dict, work: Path, overrides: dict[int, str]) -> None:
+    def __init__(self, artifact: dict, matrix: dict, work: Path, overrides: dict[int, str],
+                 extra_mods: list[Path] = ()) -> None:
         self.artifact, self.matrix = artifact, matrix
         self.node = artifact["artifact_node"]
         self.work = work / "lanes" / self.node
@@ -506,8 +511,8 @@ class Lane:
             raise ScenarioFailure(f"missing {self.jar.relative_to(ROOT)}; build it first")
         self.cache = work / "cache"
         self.minecraft = work / "minecraft"
-        self.server = Server(artifact, matrix, self.jar, self.work, self.java)
-        mods = [self.jar, *(self.server.directory / "mods").glob("fabric-api-*.jar")]
+        self.server = Server(artifact, matrix, self.jar, self.work, self.java, extra_mods)
+        mods = [self.jar, *(self.server.directory / "mods").glob("fabric-api-*.jar"), *extra_mods]
         vid = install_client(artifact, matrix, self.minecraft, self.cache, self.java)
         self.clients = {name: Client(name, self.work, mods, self.minecraft, vid, self.java) for name in PLAYERS}
         self.results: dict[str, list[str]] = {}
@@ -976,7 +981,12 @@ def main() -> int:
     parser.add_argument("--work-dir", type=Path, default=ROOT / "build" / "multiplayer")
     parser.add_argument("--java", action="append", default=[], metavar="VERSION=HOME",
                         help="Java home for a feature version, e.g. 25=/opt/jdk-25")
+    parser.add_argument("--extra-mod", action="append", default=[], type=Path, metavar="JAR",
+                        help="another mod to install on the server and every client, to check compatibility")
     args = parser.parse_args()
+    for mod in args.extra_mod:
+        if not mod.is_file():
+            parser.error(f"not a file: {mod}")
 
     for tool in ("Xvfb", "xdotool"):
         if shutil.which(tool) is None:
@@ -997,7 +1007,8 @@ def main() -> int:
         started = time.monotonic()
         print(f"{node}:", flush=True)
         try:
-            results = Lane(by_node[node], matrix, args.work_dir.resolve(), overrides).play()
+            results = Lane(by_node[node], matrix, args.work_dir.resolve(), overrides,
+                           [mod.resolve() for mod in args.extra_mod]).play()
             failed = [name for name, problems in results.items() if problems]
             ok, detail = not failed, ("every checkpoint passed" if not failed else f"failed at {failed[0]}")
         except Exception as error:  # an install or launch failure is a failed lane, not a crash
