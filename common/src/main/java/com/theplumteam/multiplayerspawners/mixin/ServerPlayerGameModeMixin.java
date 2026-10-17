@@ -9,6 +9,8 @@ import com.theplumteam.multiplayerspawners.util.Notices;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import com.theplumteam.multiplayerspawners.util.SpawnerStateManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.tags.TagKey;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -19,6 +21,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -44,6 +47,10 @@ public abstract class ServerPlayerGameModeMixin {
 
     @Unique
     private static final String DUNGEON_PICKAXE_ID = "composite_material:dungeon_pickaxe";
+
+    /** Items that break a spawner like vanilla when {@code breakWithSpawnerTools} is on. */
+    @Unique
+    private static final TagKey<Item> multiplayerspawners$BREAKS_SPAWNERS = TagKey.create(Registries.ITEM, Constants.id("breaks_spawners"));
 
     @Unique
     private boolean multiplayerspawners$isDungeonPickaxe(ItemStack itemStack) {
@@ -228,6 +235,13 @@ public abstract class ServerPlayerGameModeMixin {
                         return;
                     }
                 }
+            }
+
+            // A tool made to move spawners (item tag multiplayerspawners:breaks_spawners) breaks it like
+            // vanilla, for everyone: the tool's own mod decides what drops.
+            if (ModConfig.SERVER.breakWithSpawnerTools.get() && this.player.getMainHandItem().is(multiplayerspawners$BREAKS_SPAWNERS)) {
+                Constants.debug("Player {} breaks the spawner at {} with a spawner tool", this.player.getName().getString(), pos);
+                return;
             }
 
             if (SpawnerStateManager.isSpawnerDisabledForPlayer(world, pos, this.player.getName().getString())) {

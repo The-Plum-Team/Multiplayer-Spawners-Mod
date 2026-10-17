@@ -156,6 +156,24 @@ public class CommandHandler {
                             return 1;
                         })
                 )
+                .then(Commands.literal("toggle_break_tools")
+                        .requires(CommandHandler::isGamemaster)
+                        .executes(context -> {
+                            boolean newValue = !ModConfig.SERVER.breakWithSpawnerTools.get();
+                            ModConfig.SERVER.breakWithSpawnerTools.set(newValue);
+
+                            // EXPLICITLY SAVE TO DISK
+                            saveServerConfig();
+
+                            context.getSource().sendSuccess(() -> Component.literal("Breaking spawners with spawner tools is now " + (newValue ? "ENABLED" : "DISABLED"))
+                                    .withStyle(newValue ? ChatFormatting.GREEN : ChatFormatting.GOLD), true);
+                            if (newValue) {
+                                context.getSource().sendSuccess(() -> Component.literal("Items of the tag multiplayerspawners:breaks_spawners break a spawner like vanilla, for everyone.")
+                                        .withStyle(ChatFormatting.GRAY), false);
+                            }
+                            return 1;
+                        })
+                )
                 .then(Commands.literal("allow_break")
                         .then(Commands.argument("x", com.mojang.brigadier.arguments.IntegerArgumentType.integer())
                                 .then(Commands.argument("y", com.mojang.brigadier.arguments.IntegerArgumentType.integer())

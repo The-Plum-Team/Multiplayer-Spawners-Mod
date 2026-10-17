@@ -1,0 +1,6 @@
+{
+  "replace": false,
+  "values": [
+    {"id": "composite_material:dungeon_pickaxe", "required": false}
+  ]
+}
