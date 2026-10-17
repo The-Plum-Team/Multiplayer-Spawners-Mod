@@ -1,8 +1,11 @@
 package com.theplumteam.multiplayerspawners.mixin;
 
 import com.google.common.collect.Sets;
+import com.theplumteam.multiplayerspawners.config.ModConfig;
+import com.theplumteam.multiplayerspawners.network.NetworkHandler;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.BaseSpawner;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
@@ -76,6 +79,21 @@ public class SpawnerBlockEntityMixin implements SpawnerDataAccessor {
         this.multiplayerspawners$isPlayerPlaced = value;
     }
 
+    /**
+     * Data loaded into a spawner that is already in a server world (a command such as /setblock or
+     * /data with its data, a structure or schematic pasted over it) reaches the players who see it:
+     * the spawner's own appearance was announced before its data was loaded. A spawner read from
+     * disk with its chunk has no world yet here; the chunk's state is sent as the chunk is.
+     */
+    @Unique
+    private void multiplayerspawners$syncLoaded(Level level, BlockPos pos) {
+        if (level instanceof ServerLevel && pos != null) {
+            boolean treatedAsVanilla = this.multiplayerspawners$isPlayerPlaced() && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
+            NetworkHandler.getInstance().sendSpawnerStateToTracking(level, pos.immutable(),
+                    Set.copyOf(this.multiplayerspawners$disabledPlayers), treatedAsVanilla);
+        }
+    }
+
     @Unique
     private boolean multiplayerspawners$hasData() {
         return !this.multiplayerspawners$disabledPlayers.isEmpty() || this.multiplayerspawners$isPlayerPlaced;
@@ -93,6 +111,7 @@ public class SpawnerBlockEntityMixin implements SpawnerDataAccessor {
                     player -> times.getLong(player).ifPresent(time -> this.multiplayerspawners$disabledTimes.put(player, time))));
             this.multiplayerspawners$isPlayerPlaced = data.getBooleanOr(multiplayerspawners$PLAYER_PLACED, false);
         });
+        multiplayerspawners$syncLoaded(level, pos);
     }
 
     @Inject(method = "save", at = @At("RETURN"))
@@ -142,6 +161,7 @@ public class SpawnerBlockEntityMixin implements SpawnerDataAccessor {
             this.multiplayerspawners$isPlayerPlaced = data.getBoolean(multiplayerspawners$PLAYER_PLACED);
         }
         ^///?}
+        multiplayerspawners$syncLoaded(level, pos);
     }
 
     @Inject(method = "save(Lnet/minecraft/nbt/CompoundTag;)Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"))

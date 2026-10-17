@@ -4,7 +4,7 @@ Per-player spawners for multiplayer servers. When a player breaks a spawner it i
 that player only**: it stops spawning while they are nearby and they see it go dark, while it
 stays active for everyone else, so every player gets to clear the same dungeon.
 
-- **Group disabling:** players near the one who disabled a spawner get it disabled too.
+- **Group disabling:** players near the one who hits a spawner get it disabled too, on every hit.
 - **Breaking:** a disabled spawner can be broken through a clickable chat message (or always in
   Creative), after one or two hits.
 - **Torches:** a torch placed within 7 blocks of a spawner is put out after a delay.

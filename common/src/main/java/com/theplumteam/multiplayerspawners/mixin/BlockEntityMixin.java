@@ -34,14 +34,18 @@ public abstract class BlockEntityMixin implements OneShotData {
     @Unique
     private static final String multiplayerspawners$PRISTINE = "Pristine";
 
+    /** Created when first needed: every block entity of the world carries this field. */
     @Unique
-    private final Set<String> multiplayerspawners$usedBy = new HashSet<>();
+    private Set<String> multiplayerspawners$usedBy;
 
     @Unique
     private CompoundTag multiplayerspawners$pristine;
 
     @Override
     public Set<String> multiplayerspawners$getUsedBy() {
+        if (this.multiplayerspawners$usedBy == null) {
+            this.multiplayerspawners$usedBy = new HashSet<>();
+        }
         return this.multiplayerspawners$usedBy;
     }
 
@@ -62,12 +66,12 @@ public abstract class BlockEntityMixin implements OneShotData {
     /*@Inject(method = "saveWithFullMetadata()Lnet/minecraft/nbt/CompoundTag;", at = @At("RETURN"))
     private void multiplayerspawners$onSave(CallbackInfoReturnable<CompoundTag> cir) {
     *///?}
-        if (this.multiplayerspawners$usedBy.isEmpty() && this.multiplayerspawners$pristine == null) {
+        if ((this.multiplayerspawners$usedBy == null || this.multiplayerspawners$usedBy.isEmpty()) && this.multiplayerspawners$pristine == null) {
             return;
         }
         CompoundTag data = new CompoundTag();
         ListTag usedBy = new ListTag();
-        this.multiplayerspawners$usedBy.forEach(player -> usedBy.add(StringTag.valueOf(player)));
+        this.multiplayerspawners$getUsedBy().forEach(player -> usedBy.add(StringTag.valueOf(player)));
         data.put(multiplayerspawners$USED_BY, usedBy);
         if (this.multiplayerspawners$pristine != null) {
             data.put(multiplayerspawners$PRISTINE, this.multiplayerspawners$pristine.copy());

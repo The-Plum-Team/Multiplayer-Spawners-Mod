@@ -10,9 +10,9 @@ Run it on demand (it is not part of CI); it reuses the multiplayer test's server
 Before anyone joins, the server gets a grid of spawners (disabled for Alice and Bob, so every one
 of them is synced and suppressed) with a tracked torch next to each, over forceloaded chunks. The
 server's ticks per second are measured with /debug start and /debug stop (available on every
-supported version) while it is idle, while the three players join (the join sends every spawner's
-state, the step that brought old versions down) and while the players stand among the spawners as
-the torches go out.
+supported version), and from 1.20.3 the time a tick takes with /tick query, while it is idle,
+while the three players join (the join sends every spawner's state, the step that brought old
+versions down) and while the players stand among the spawners as the torches go out.
 The run fails if the server falls below --min-tps in any of them; the numbers are printed and
 written to <work-dir>/lanes/<node>/load.json.
 """
@@ -31,13 +31,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import multiplayer as mp  # noqa: E402
 
-GRID_STEP = 8  # blocks between spawners
+GRID_STEP = 8  # blocks between spawners (--grid-step)
 ORIGIN = (0, mp.FEET, 0)
 
 
 class LoadLane(mp.Lane):
     spawners = 400
     min_tps = 18.0
+    grid_step = GRID_STEP
 
     def measure(self, label: str, seconds: float, during=None) -> float:
         self.run("debug start")
@@ -50,13 +51,18 @@ class LoadLane(mp.Lane):
         self.check(match is not None, f"could not read the tick rate: {answer!r}")
         tps = float(match.group(1))
         self.results_load[label] = tps
-        print(f"    {label:24} {tps:5.2f} ticks per second", flush=True)
+        # /tick (from 1.20.3) also tells how long the recent ticks took: the load below 20 TPS.
+        query = self.run("tick query")
+        mspt = re.search(r"Average time per tick: ([0-9.]+) ?ms", query)
+        if mspt:
+            self.results_load[f"{label} (ms per tick)"] = float(mspt.group(1))
+        print(f"    {label:24} {tps:5.2f} ticks per second" + (f", {mspt.group(1)} ms per tick" if mspt else ""), flush=True)
         self.check(tps >= self.min_tps, f"{label}: the server ran at {tps:.2f} ticks per second (below {self.min_tps})")
         return tps
 
     def grid(self) -> list[tuple[int, int, int]]:
         side = math.ceil(math.sqrt(self.spawners))
-        return [(ORIGIN[0] + i * GRID_STEP, ORIGIN[1], ORIGIN[2] + j * GRID_STEP)
+        return [(ORIGIN[0] + i * self.grid_step, ORIGIN[1], ORIGIN[2] + j * self.grid_step)
                 for i in range(side) for j in range(side)][:self.spawners]
 
     def step_joined(self) -> None:
@@ -118,6 +124,8 @@ def main() -> int:
     parser.add_argument("--minecraft", action="append", default=[], help="every lane of this Minecraft version")
     parser.add_argument("--spawners", type=int, default=400, help="spawners (each with a torch) to place")
     parser.add_argument("--min-tps", type=float, default=18.0, help="fail below this many ticks per second")
+    parser.add_argument("--grid-step", type=int, default=GRID_STEP,
+                        help="blocks between spawners; the grid must fit the 256 chunks /forceload takes")
     parser.add_argument("--work-dir", type=Path, default=mp.ROOT / "build" / "load")
     args = parser.parse_args()
 
@@ -127,7 +135,7 @@ def main() -> int:
     if not nodes or any(node not in by_node for node in nodes):
         parser.error("name lanes of the release matrix, or pass --minecraft")
     mp.CHECKPOINTS = ("joined", "idle", "join", "among-spawners", "stopped")
-    LoadLane.spawners, LoadLane.min_tps = args.spawners, args.min_tps
+    LoadLane.spawners, LoadLane.min_tps, LoadLane.grid_step = args.spawners, args.min_tps, args.grid_step
 
     failures = 0
     for node in nodes:

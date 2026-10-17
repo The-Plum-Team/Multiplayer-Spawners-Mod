@@ -17,6 +17,7 @@
   ],
   "client": [
     "client.BaseSpawnerClientMixin",
+    "client.MultiPlayerGameModeMixin",
     "client.SpawnerClientTickMixin"
   ],
   "injectors": {
