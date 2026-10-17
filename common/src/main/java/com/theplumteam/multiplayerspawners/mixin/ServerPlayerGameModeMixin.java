@@ -209,7 +209,10 @@ public abstract class ServerPlayerGameModeMixin {
         Level world = this.player.level();
         BlockState blockState = world.getBlockState(pos);
 
-        if (blockState.getBlock() instanceof SpawnerBlock) {
+        // Only spawners with the vanilla spawner logic (or a subclass, as Apothic Spawners'): other
+        // mods' spawner blocks with their own block entity, such as Brass Amber Battle Towers' tower
+        // spawners, break as their mod intends.
+        if (blockState.getBlock() instanceof SpawnerBlock && world.getBlockEntity(pos) instanceof SpawnerBlockEntity) {
             boolean allowBreaking = ModConfig.SERVER.allowSpawnerBreakMessage.get();
             boolean isCreative = this.player.isCreative();
             int requiredAttempts = ModConfig.SERVER.requiredBreakAttempts.get();
