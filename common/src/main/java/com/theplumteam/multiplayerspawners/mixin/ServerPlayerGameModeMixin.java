@@ -6,6 +6,7 @@ import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
 import com.theplumteam.multiplayerspawners.util.Notices;
+import com.theplumteam.multiplayerspawners.util.OneShotSpawners;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import com.theplumteam.multiplayerspawners.util.SpawnerStateManager;
 import net.minecraft.core.BlockPos;
@@ -216,6 +217,13 @@ public abstract class ServerPlayerGameModeMixin {
     private void multiplayerspawners$onAttemptDestroyBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
         Level world = this.player.level();
         BlockState blockState = world.getBlockState(pos);
+
+        // A survival player mining a single-use spawner uses it up for themselves only.
+        if (OneShotSpawners.onMined(world, pos, this.player)) {
+            this.player.connection.send(new ClientboundBlockUpdatePacket(pos, blockState));
+            cir.setReturnValue(false);
+            return;
+        }
 
         // Only spawners with the vanilla spawner logic (or a subclass, as Apothic Spawners'): other
         // mods' spawner blocks with their own block entity, such as Brass Amber Battle Towers' tower

@@ -1,0 +1,7 @@
+{
+  "replace": false,
+  "values": [
+    {"id": "quark:monster_box", "required": false},
+    {"id": "apotheosis:boss_spawner", "required": false}
+  ]
+}

@@ -17,6 +17,13 @@ disabled per player like vanilla ones, within their own activation range) and
 [Ageing Spawners](https://modrinth.com/mod/ageing-spawners): a spawner that runs out is disabled for
 the players who used it up and stays for everyone else, instead of disappearing for the whole server.
 
+**Single-use spawners** — [Quark](https://modrinth.com/mod/quark)'s monster box and
+[Apotheosis](https://modrinth.com/mod/apotheosis)' boss spawner — spawn their mobs or boss once and
+then remove themselves. They now stay: used up only for the players near them when they trigger
+(and for a player who mines one), they trigger again for the next players and keep who used them
+across restarts. The block tag `multiplayerspawners:one_shot_spawners` lists them; a datapack can add
+other blocks that work the same way, and `oneShotSpawnerRange` sets how near counts.
+
 The [project site](https://the-plum-team.github.io/Multiplayer-Spawners-Mod/) shows what three real
 players saw while testing every supported Minecraft version and loader on a dedicated server.
 
@@ -37,7 +44,7 @@ On Fabric the mod needs Fabric API.
 
 | File | Settings |
 |---|---|
-| `<world>/serverconfig/multiplayerspawners-server.toml` | group disabling and its radius, respawn time, chat notices, torch delay, break attempts, break message, breaking with spawner tools, vanilla player-placed spawners |
+| `<world>/serverconfig/multiplayerspawners-server.toml` | group disabling and its radius, respawn time, chat notices, single-use spawner range, torch delay, break attempts, break message, breaking with spawner tools, vanilla player-placed spawners |
 | `config/multiplayerspawners-client.toml` | debug logging |
 
 Operators (level 2) can change the server settings in game; the change is saved to the file:

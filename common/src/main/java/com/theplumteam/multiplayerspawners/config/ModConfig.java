@@ -42,6 +42,7 @@ public final class ModConfig {
         public final BooleanValue treatPlacedSpawnersAsVanilla;
         public final IntValue spawnerRespawnMinutes;
         public final BooleanValue showNotices;
+        public final IntValue oneShotSpawnerRange;
 
         private ServerConfig() {
             push("general", "MultiplayerSpawners Configuration");
@@ -62,6 +63,10 @@ public final class ModConfig {
                     "If false, the mod sends no informational chat messages (a spawner was disabled for you or nearby",
                     "players, when it comes back, when it ran out). The message with the break link is still sent.",
                     "Use /multiplayerspawners toggle_notices to change this in-game.");
+            oneShotSpawnerRange = defineInRange("oneShotSpawnerRange", 16, 2, 64,
+                    "Single-use spawners (block tag multiplayerspawners:one_shot_spawners, such as Quark's monster box",
+                    "and Apotheosis' boss spawner) are used up for the players within this many blocks when they",
+                    "trigger, and do not trigger again while only such players are this near.");
 
             push("breaking", "Breaking Mechanics");
             requiredBreakAttempts = defineInRange("requiredBreakAttempts", 2, 1, 10,
