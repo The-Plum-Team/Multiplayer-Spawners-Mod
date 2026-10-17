@@ -843,10 +843,13 @@ class Lane:
         self.park("Alice", S2)
         self.park("Bob", S2, 40)
         self.wait_for("S2 to be active again for Carol", lambda: not self.disabled_players(S2), 75)
+        # S2 spawns for Carol again now: its pigs must not stand in her view or take her hit.
+        self.clear_spawned()
         self.expect_view("Carol", S2, (3, 0), "07-carol-s2-respawned", active=True, capture="s2_respawned",
                          context=" again after the one-minute respawn time, without rejoining")
         # A new hit disables it again, tells her when it comes back, and it does one minute later.
         carol = len(self.clients["Carol"].chat())
+        self.clear_spawned()
         self.hit("Carol", S2, (3, 0))
         disabled_at = time.monotonic()
         self.wait_for("Carol in S2's DisabledPlayers again", lambda: self.disabled_players(S2) == {"Carol"}, 10)
@@ -855,15 +858,21 @@ class Lane:
         self.wait_for("S2 to be active again for Carol a minute later", lambda: not self.disabled_players(S2), 90, 1)
         elapsed = time.monotonic() - disabled_at
         self.check(55 <= elapsed, f"S2 was active again {elapsed:.0f} s after Carol's hit, before the minute passed")
+        self.clear_spawned()
         self.expect_view("Carol", S2, (3, 0), "07-carol-s2-respawned-again", active=True)
         self.notes.append(f"respawn: S2 active again {elapsed:.0f} s after Carol's hit")
         answer = self.run(f"{MOD_ID} respawn 0")
         self.check("DISABLED" in answer, f"turning respawn off answered {answer!r}")
+        # S2 was active for Carol at the end: its pigs would walk into the next step.
+        self.park("Carol", S2)
+        self.clear_spawned()
 
     def step_torch(self) -> None:
         answer = self.run(f"{MOD_ID} torch delay 3")
         self.check("3 seconds" in answer, f"the torch delay command answered {answer!r}")
         self.park("Carol", S2)
+        # A pig that walks into Alice as she places the torch moves it to the next block.
+        self.clear_spawned()
         x, y, z = TORCH
         self.hold("Alice", "minecraft:torch")
         self.clear_spot(TORCH)
