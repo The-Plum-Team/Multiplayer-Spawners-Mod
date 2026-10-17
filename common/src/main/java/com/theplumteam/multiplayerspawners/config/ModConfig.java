@@ -37,9 +37,11 @@ public final class ModConfig {
         public final IntValue groupDisablingRadius;
         public final IntValue torchExtinguishDelaySeconds;
         public final BooleanValue allowSpawnerBreakMessage;
+        public final BooleanValue breakWithSpawnerTools;
         public final IntValue requiredBreakAttempts;
         public final BooleanValue treatPlacedSpawnersAsVanilla;
         public final IntValue spawnerRespawnMinutes;
+        public final BooleanValue showNotices;
 
         private ServerConfig() {
             push("general", "MultiplayerSpawners Configuration");
@@ -56,6 +58,10 @@ public final class ModConfig {
                     "Minutes after which a spawner a player disabled becomes active again for that player.",
                     "Counted in game time, while the server runs. 0 = never: a disabled spawner stays disabled.",
                     "Use /multiplayerspawners respawn <minutes> to change this in-game.");
+            showNotices = define("showNotices", true,
+                    "If false, the mod sends no informational chat messages (a spawner was disabled for you or nearby",
+                    "players, when it comes back, when it ran out). The message with the break link is still sent.",
+                    "Use /multiplayerspawners toggle_notices to change this in-game.");
 
             push("breaking", "Breaking Mechanics");
             requiredBreakAttempts = defineInRange("requiredBreakAttempts", 2, 1, 10,
@@ -67,6 +73,12 @@ public final class ModConfig {
                     "If true, players receive a clickable message allowing them to break disabled spawners.",
                     "If false, only Creative mode players can break disabled spawners.",
                     "Use /multiplayerspawners toggle_break_message to toggle this setting in-game.");
+            breakWithSpawnerTools = define("breakWithSpawnerTools", false,
+                    "If true, a player holding an item of the item tag multiplayerspawners:breaks_spawners breaks a",
+                    "spawner like vanilla, for everyone (the tool's own mod decides what drops). Add the spawner-moving",
+                    "tools of your mods to that tag with a datapack. With allowSpawnerBreakMessage = false, spawners can",
+                    "then only be broken with those tools (or in Creative).",
+                    "Use /multiplayerspawners toggle_break_tools to toggle this setting in-game.");
 
             push("torches", "Torch Extinguishing System");
             torchExtinguishDelaySeconds = defineInRange("torchExtinguishDelaySeconds", 600, 0, 3600,

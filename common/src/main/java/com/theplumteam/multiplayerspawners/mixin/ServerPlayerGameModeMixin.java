@@ -5,9 +5,12 @@ import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
+import com.theplumteam.multiplayerspawners.util.Notices;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import com.theplumteam.multiplayerspawners.util.SpawnerStateManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.tags.TagKey;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -18,6 +21,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -43,6 +47,10 @@ public abstract class ServerPlayerGameModeMixin {
 
     @Unique
     private static final String DUNGEON_PICKAXE_ID = "composite_material:dungeon_pickaxe";
+
+    /** Items that break a spawner like vanilla when {@code breakWithSpawnerTools} is on. */
+    @Unique
+    private static final TagKey<Item> multiplayerspawners$BREAKS_SPAWNERS = TagKey.create(Registries.ITEM, Constants.id("breaks_spawners"));
 
     @Unique
     private boolean multiplayerspawners$isDungeonPickaxe(ItemStack itemStack) {
@@ -92,7 +100,7 @@ public abstract class ServerPlayerGameModeMixin {
     private static void multiplayerspawners$sendRespawnNotice(ServerPlayer player) {
         int minutes = ModConfig.SERVER.spawnerRespawnMinutes.get();
         if (minutes > 0) {
-            player.sendSystemMessage(Component.literal("It will be active for you again in " + minutes
+            Notices.send(player, Component.literal("It will be active for you again in " + minutes
                     + (minutes == 1 ? " minute." : " minutes.")).withStyle(ChatFormatting.GRAY));
         }
     }
@@ -126,7 +134,7 @@ public abstract class ServerPlayerGameModeMixin {
                 if (!SpawnerStateManager.isSpawnerDisabledForPlayer(level, spawnerPos, nearbyPlayerName)) {
                     SpawnerStateManager.disableSpawnerForPlayer(level, spawnerPos, nearbyPlayerName);
                     playersAffected++;
-                    serverPlayer.sendSystemMessage(
+                    Notices.send(serverPlayer,
                             Component.literal("A spawner in this area has been disabled by " + triggeringPlayer.getName().getString() + ".").withStyle(ChatFormatting.GOLD));
                 }
             }
@@ -139,7 +147,7 @@ public abstract class ServerPlayerGameModeMixin {
                     && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
 
             NetworkHandler.getInstance().sendSpawnerStateToTracking(level, spawnerPos, disabledPlayers, treatedAsVanilla);
-            triggeringPlayer.sendSystemMessage(
+            Notices.send(triggeringPlayer,
                     Component.literal("Group disabling: Spawner disabled for " + playersAffected + " nearby player(s).").withStyle(ChatFormatting.GOLD));
         }
     }
@@ -209,7 +217,10 @@ public abstract class ServerPlayerGameModeMixin {
         Level world = this.player.level();
         BlockState blockState = world.getBlockState(pos);
 
-        if (blockState.getBlock() instanceof SpawnerBlock) {
+        // Only spawners with the vanilla spawner logic (or a subclass, as Apothic Spawners'): other
+        // mods' spawner blocks with their own block entity, such as Brass Amber Battle Towers' tower
+        // spawners, break as their mod intends.
+        if (blockState.getBlock() instanceof SpawnerBlock && world.getBlockEntity(pos) instanceof SpawnerBlockEntity) {
             boolean allowBreaking = ModConfig.SERVER.allowSpawnerBreakMessage.get();
             boolean isCreative = this.player.isCreative();
             int requiredAttempts = ModConfig.SERVER.requiredBreakAttempts.get();
@@ -224,6 +235,13 @@ public abstract class ServerPlayerGameModeMixin {
                         return;
                     }
                 }
+            }
+
+            // A tool made to move spawners (item tag multiplayerspawners:breaks_spawners) breaks it like
+            // vanilla, for everyone: the tool's own mod decides what drops.
+            if (ModConfig.SERVER.breakWithSpawnerTools.get() && this.player.getMainHandItem().is(multiplayerspawners$BREAKS_SPAWNERS)) {
+                Constants.debug("Player {} breaks the spawner at {} with a spawner tool", this.player.getName().getString(), pos);
+                return;
             }
 
             if (SpawnerStateManager.isSpawnerDisabledForPlayer(world, pos, this.player.getName().getString())) {
@@ -250,7 +268,7 @@ public abstract class ServerPlayerGameModeMixin {
                 }
 
                 multiplayerspawners$forceVisualStateRefresh(world, pos, this.player);
-                player.sendSystemMessage(Component.literal("It will no longer spawn creatures while you are nearby.").withStyle(ChatFormatting.RED));
+                Notices.send(player, Component.literal("It will no longer spawn creatures while you are nearby.").withStyle(ChatFormatting.RED));
                 multiplayerspawners$sendRespawnNotice(this.player);
                 cir.setReturnValue(false);
                 cir.cancel();

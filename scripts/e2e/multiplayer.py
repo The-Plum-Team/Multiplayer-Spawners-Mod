@@ -23,9 +23,12 @@ The scenario, in the order it runs (each checkpoint fails the lane on its own):
   persistence       after a server restart the spawners still know who disabled them
   join-sync         rejoining players see each spawner the way it is for them
   break-link        Bob clicks the chat link and the spawner is removed
+  replaced          a new spawner where the removed one stood is active for players who had disabled the old one
+  quiet             with notices off, disabling a spawner sends none of the mod's informational messages
   respawn           with a respawn time set, a disabled spawner becomes active again for its player
   torch             a torch Alice places next to a spawner is put out
   player-placed     a spawner Alice places is treated as vanilla and breaks normally
+  break-tools       with spawner tools on, a tool of the breaks_spawners tag breaks a spawner in one hit
   stopped           the server stops cleanly and nothing logged an error from the mod
   evidence          every capture e2e/scenario-contract.json declares was taken by a passed check
 
@@ -83,7 +86,8 @@ RCON_PASSWORD = "multiplayerspawners-e2e"
 
 CHECKPOINTS = ("joined", "initial-view", "spawns", "group-disable", "per-player-view", "suppressed",
                "active-for-others", "break-message", "joined-disable", "persistence", "join-sync",
-               "break-link", "respawn", "torch", "player-placed", "stopped", "evidence")
+               "break-link", "replaced", "quiet", "respawn", "torch", "player-placed", "break-tools", "stopped",
+               "evidence")
 
 # The world is a flat world: the ground is the grass block layer at y=-61, players stand at y=-60.
 FEET = -60
@@ -92,9 +96,15 @@ S1 = (0, FEET, 10)       # the dungeon spawner the scenario is about
 S2 = (40, FEET, 10)      # Carol's own spawner, far from the others
 PLACED = (-30, FEET, 10)  # where Alice places a spawner herself
 TORCH = (42, FEET, 12)   # within the 7 blocks of S2 that put a torch out
+TOOLED = (-30, FEET, 30)  # the spawner Alice breaks with a spawner tool
+SPAWNER_TOOL = "minecraft:golden_pickaxe"  # added to multiplayerspawners:breaks_spawners by the test datapack
 SPAWNED_TAG = "mps_e2e"
 CONTRACT = ROOT / "e2e" / "scenario-contract.json"
 EVIDENCE_SCENARIO = "multiplayer"
+
+
+def version_tuple(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
 
 
 class ScenarioFailure(Exception):
@@ -698,7 +708,21 @@ class Lane:
 
     # -- steps ---------------------------------------------------------------------------------
 
+    def write_datapack(self) -> None:
+        """A world datapack that puts SPAWNER_TOOL in the mod's breaks_spawners item tag."""
+
+        pack = self.server.directory / "world" / "datapacks" / "mps_e2e"
+        tags = "item" if version_tuple(self.artifact["minecraft"]) >= (1, 21) else "items"
+        (pack / "data" / MOD_ID / "tags" / tags).mkdir(parents=True)
+        # pack_format for up to 1.21.8, min/max_format from 1.21.9; each version ignores the others.
+        (pack / "pack.mcmeta").write_text(json.dumps({"pack": {
+            "description": "Multiplayer Spawners test", "pack_format": 15, "supported_formats": [15, 9999],
+            "min_format": 15, "max_format": 9999}}))
+        (pack / "data" / MOD_ID / "tags" / tags / "breaks_spawners.json").write_text(
+            json.dumps({"replace": False, "values": [SPAWNER_TOOL]}))
+
     def step_joined(self) -> None:
+        self.write_datapack()
         self.server.start()
         self.run("time set 6000")
         # 26.1 renamed the rules; the name a version does not know is refused and changes nothing.
@@ -753,10 +777,17 @@ class Lane:
         self.park("Carol", S1)
 
     def step_suppressed(self) -> None:
+        # Carol, who has it active, stands at a corner 14 blocks out on both axes: about 20 blocks
+        # away, out of the spawner's 16-block reach (so not near for the spawner itself), but inside
+        # the 16-block box the mod once checked, which then let it spawn for Alice and Bob.
+        x, _, z = S1
+        self.look("Carol", (x + 30.5, EYE, z + 30.5), (x + 14.5, FEET, z + 14.5))
         self.ready_to_spawn(S1)
         time.sleep(8)
         count = self.spawned()
-        self.check(count == 0, f"the spawner spawned {count} pig(s) with only Alice and Bob (who disabled it) near")
+        self.check(count == 0, f"the spawner spawned {count} pig(s) with only Alice and Bob (who disabled it) near "
+                               "and Carol about 20 blocks away")
+        self.park("Carol", S1)
 
     def step_active_for_others(self) -> None:
         self.look_at_block("Carol", S1, (3, 0))
@@ -835,6 +866,35 @@ class Lane:
                      f"Bob's open chat shows the red break link at {position[0]},{position[1]}; clicking it removed "
                      f"the spawner at {S1[0]} {S1[1]} {S1[2]} and the chat said: Spawner successfully broken and removed!")
 
+    def step_replaced(self) -> None:
+        # As a mod that regenerates structures does: a new spawner where the removed one stood.
+        # Alice had disabled the old one; the new one is untouched, so she must see it active.
+        self.place_spawner(S1)
+        self.check(not self.disabled_players(S1), f"the new spawner is disabled for {sorted(self.disabled_players(S1))}")
+        self.park("Bob", S1, 40)
+        self.park("Carol", S1, 60)
+        self.expect_view("Alice", S1, (0, -3), "08-alice-s1-replaced", active=True,
+                         context=" placed where the one she had disabled stood, without rejoining")
+
+    def step_quiet(self) -> None:
+        answer = self.run(f"{MOD_ID} toggle_notices")
+        self.check("OFF" in answer, f"turning notices off answered {answer!r}")
+        alice, bob = len(self.clients["Alice"].chat()), len(self.clients["Bob"].chat())
+        self.clear_spawned()
+        self.look_at_block("Alice", S1, (0, -3))
+        self.hit("Bob", S1, (0, 3))
+        self.wait_for("Bob and Alice in the new spawner's DisabledPlayers",
+                      lambda: self.disabled_players(S1) == {"Alice", "Bob"}, 10)
+        time.sleep(3)
+        for player, mark in (("Alice", alice), ("Bob", bob)):
+            for notice in ("Group disabling", "A spawner in this area has been disabled", "no longer spawn creatures"):
+                self.check(not self.chat_contains(player, notice, mark), f"{player} was told {notice!r} with notices off")
+        answer = self.run(f"{MOD_ID} toggle_notices")
+        self.check("ON" in answer, f"turning notices back on answered {answer!r}")
+        x, y, z = S1
+        self.run(f"setblock {x} {y} {z} minecraft:air")
+        self.clear_spawned()
+
     def step_respawn(self) -> None:
         # Only Carol has disabled S2, before the restart: more than a minute ago, so with a respawn
         # time of one minute it becomes active again for her within a second or so.
@@ -843,7 +903,10 @@ class Lane:
         self.park("Alice", S2)
         self.park("Bob", S2, 40)
         self.wait_for("S2 to be active again for Carol", lambda: not self.disabled_players(S2), 75)
-        # S2 spawns for Carol again now: its pigs must not stand in her view or take her hit.
+        # S2 spawns for Carol again now, at once (its countdown stood still while it was disabled):
+        # hold it back for this step, so that no pig stands in her view or takes her hit.
+        x, y, z = S2
+        self.run(f"data merge block {x} {y} {z} {{Delay:600s}}")
         self.clear_spawned()
         self.expect_view("Carol", S2, (3, 0), "07-carol-s2-respawned", active=True, capture="s2_respawned",
                          context=" again after the one-minute respawn time, without rejoining")
@@ -903,6 +966,20 @@ class Lane:
         self.hit("Alice", PLACED, (0, -2))
         self.wait_for("the player-placed spawner to break like a vanilla one",
                       lambda: self.block_is(PLACED, "minecraft:air"), 10)
+
+    def step_break_tools(self) -> None:
+        answer = self.run(f"{MOD_ID} toggle_break_tools")
+        self.check("ENABLED" in answer, f"turning spawner tools on answered {answer!r}")
+        self.place_spawner(TOOLED)
+        self.clear_spawned()
+        self.hold("Alice", SPAWNER_TOOL)
+        self.look_at_block("Alice", TOOLED, (0, -2))
+        time.sleep(1.5)
+        self.clients["Alice"].left_click()
+        self.wait_for("the spawner tool to break the spawner in one hit",
+                      lambda: self.block_is(TOOLED, "minecraft:air"), 10)
+        answer = self.run(f"{MOD_ID} toggle_break_tools")
+        self.check("DISABLED" in answer, f"turning spawner tools off answered {answer!r}")
 
     def step_stopped(self) -> None:
         for client in self.clients.values():
