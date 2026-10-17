@@ -12,6 +12,12 @@ public class ClientEventHandler {
     private static String lastDimension = null;
     private static int tickCounter = 0;
 
+    /** Ticks until the refresh after a respawn, or -1 when none is pending. */
+    private static int respawnRefreshTicks = -1;
+
+    /** About a second: the respawned player's chunks arrive first. */
+    private static final int RESPAWN_REFRESH_DELAY_TICKS = 20;
+
     /**
      * Called when a chunk is loaded on the client
      */
@@ -49,6 +55,10 @@ public class ClientEventHandler {
 
         tickCounter++;
 
+        if (respawnRefreshTicks >= 0 && respawnRefreshTicks-- == 0) {
+            ClientSpawnerData.refreshPendingSpawnerStates();
+        }
+
         // Monitor and correct spawner states every tick for immediate response to texture resets
         // This is the key fix for the break cancellation issue
         ClientSpawnerData.monitorAndCorrectSpawnerStates();
@@ -67,6 +77,7 @@ public class ClientEventHandler {
         Constants.debug("CLIENT: Connected - resetting state tracking");
         lastDimension = null;
         tickCounter = 0;
+        respawnRefreshTicks = -1;
         ClientSpawnerData.clearAll();
     }
 
@@ -85,18 +96,9 @@ public class ClientEventHandler {
      */
     public static void onPlayerRespawn() {
         Constants.debug("CLIENT: Player respawned - scheduling targeted refresh");
-        // Use the new targeted refresh instead of refreshing everything
-        var minecraft = Minecraft.getInstance();
-        if (minecraft != null) {
-            minecraft.execute(() -> {
-                try {
-                    Thread.sleep(1000); // Wait for world to load
-                    ClientSpawnerData.refreshPendingSpawnerStates();
-                } catch (InterruptedException e) {
-                    Constants.LOG.warn("CLIENT: Respawn refresh interrupted", e);
-                }
-            });
-        }
+        // Refresh once the respawned player's chunks have arrived, from the client tick: waiting
+        // here would freeze the game.
+        respawnRefreshTicks = RESPAWN_REFRESH_DELAY_TICKS;
     }
 
     /**
