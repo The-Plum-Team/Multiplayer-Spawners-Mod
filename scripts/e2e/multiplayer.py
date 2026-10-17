@@ -903,7 +903,10 @@ class Lane:
         self.park("Alice", S2)
         self.park("Bob", S2, 40)
         self.wait_for("S2 to be active again for Carol", lambda: not self.disabled_players(S2), 75)
-        # S2 spawns for Carol again now: its pigs must not stand in her view or take her hit.
+        # S2 spawns for Carol again now, at once (its countdown stood still while it was disabled):
+        # hold it back for this step, so that no pig stands in her view or takes her hit.
+        x, y, z = S2
+        self.run(f"data merge block {x} {y} {z} {{Delay:600s}}")
         self.clear_spawned()
         self.expect_view("Carol", S2, (3, 0), "07-carol-s2-respawned", active=True, capture="s2_respawned",
                          context=" again after the one-minute respawn time, without rejoining")
