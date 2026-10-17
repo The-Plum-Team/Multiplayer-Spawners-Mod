@@ -1,24 +1,28 @@
 package com.theplumteam.multiplayerspawners.client;
 
-import java.util.ArrayList;
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.block.SpawnerStateProperties;
 import com.theplumteam.multiplayerspawners.registration.ModBlocksItems;
-import net.minecraft.core.registries.BuiltInRegistries;
+import com.theplumteam.multiplayerspawners.util.OneShotSpawners;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.SpawnerBlock;
+import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Client-side storage for spawner states with visual updates via "mark dirty" approach.
- * FIX: Removed all logic that deletes data based on world state to prevent data loss during break prediction.
+ * What the server told this client about the spawners of the chunks it sees, and the look each
+ * spawner gets from it: the mod's active look, or the vanilla one when it is disabled for the
+ * current player or treated as vanilla. A chunk's entries are forgotten when the chunk unloads.
  */
 public class ClientSpawnerData {
 
@@ -41,98 +45,65 @@ public class ClientSpawnerData {
         String currentPlayerName = getCurrentPlayerName();
         if (currentPlayerName == null) return;
 
+        pos = pos.immutable();
         boolean isDisabledForPlayer = disabledPlayers.contains(currentPlayerName);
-        Boolean previousState = playerDisabledSpawners.put(pos, isDisabledForPlayer);
-
-        boolean wasVanillaTreated = vanillaTreatedSpawners.contains(pos);
+        playerDisabledSpawners.put(pos, isDisabledForPlayer);
         if (treatedAsVanilla) {
             vanillaTreatedSpawners.add(pos);
         } else {
             vanillaTreatedSpawners.remove(pos);
         }
 
-        boolean stateChanged = (previousState == null || !previousState.equals(isDisabledForPlayer));
-        boolean treatmentChanged = (wasVanillaTreated != treatedAsVanilla);
+        Constants.debug("CLIENT: Spawner at {} updated - disabled: {}, treatedAsVanilla: {}", pos, isDisabledForPlayer, treatedAsVanilla);
 
-        Constants.debug("CLIENT: Spawner at {} updated - disabled: {}, treatedAsVanilla: {} (was: disabled={}, vanilla={})",
-                pos, isDisabledForPlayer, treatedAsVanilla, previousState, wasVanillaTreated);
-
-        // Always force an update when a packet arrives.
-        boolean forceUpdate = true;
-        boolean success = updateBlockStateInWorld(pos, isDisabledForPlayer, forceUpdate);
-
-        // If failed (e.g. chunk not loaded), mark for update later
-        if (!success) {
-            spawnersNeedingUpdate.add(pos);
-        } else {
+        if (applyLook(pos)) {
             spawnersNeedingUpdate.remove(pos);
+        } else {
+            // Its chunk or block has not arrived yet: applied when it does.
+            spawnersNeedingUpdate.add(pos);
         }
     }
 
-    private static boolean updateBlockStateInWorld(BlockPos pos, boolean isDisabledForPlayer, boolean forceUpdate) {
-        var minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || !minecraft.level.isLoaded(pos)) return false;
+    /** Whether the spawner at {@code pos} must show the mod's active look for the current player. */
+    private static boolean shouldLookActive(BlockPos pos) {
+        return !vanillaTreatedSpawners.contains(pos) && !playerDisabledSpawners.getOrDefault(pos, false);
+    }
 
-        var currentState = minecraft.level.getBlockState(pos);
+    /**
+     * Gives the spawner at {@code pos} the look its state asks for. Returns false when there is no
+     * spawner there on this client yet; a spawner block that arrives later gets its look from
+     * {@code LevelChunkMixin} or {@link #onChunkLoaded}.
+     */
+    private static boolean applyLook(BlockPos pos) {
+        var level = Minecraft.getInstance().level;
+        if (level == null || !level.isLoaded(pos)) return false;
 
-        // CRITICAL FIX: Ghost Block Handling
-        // If the client predicted the break, currentState is likely AIR.
-        // The old code returned 'false' here, so the Spawner never reappeared.
-        // Now, if forceUpdate is true (packet received), we assume a Spawner exists there.
-        boolean isSpawner = currentState.getBlock() instanceof SpawnerBlock;
-
-        if (!isSpawner) {
-            if (forceUpdate) {
-                // The client thinks it's AIR (or something else), but the server sent a spawner update.
-                // We must forcefully restore the Spawner block to fix the "invisible block" glitch.
-                // We use the vanilla spawner block as a base.
-                currentState = Blocks.SPAWNER.defaultBlockState();
-            } else {
-                // If this is just a routine check (not forced by packet) and it's not a spawner, ignore it.
-                return false;
-            }
+        BlockState currentState = level.getBlockState(pos);
+        if (!(currentState.getBlock() instanceof SpawnerBlock) || !currentState.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
+            return false;
         }
-
-        if (!currentState.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) return false;
-
-        boolean currentActivated = currentState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED);
-        boolean isVanillaTreated = vanillaTreatedSpawners.contains(pos);
-
-        // Logic: Vanilla/Disabled = Not Activated (False). Active Mod Spawner = Activated (True).
-        boolean newActivated;
-        if (isVanillaTreated) {
-            newActivated = false;
-        } else {
-            newActivated = !isDisabledForPlayer;
-        }
-
-        if (currentActivated != newActivated || forceUpdate) {
-            try {
-                var newState = currentState.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, newActivated);
-                // Flag 3 = Block Update + Send to Clients (Render Update)
-                // Flag 16 = Prevent Neighbor Reactions (important to stop chains)
-                // We must use setBlock to physically put the block back if it was AIR
-                minecraft.level.setBlock(pos, newState, 3);
-
-                markBlockForRerender(pos, currentState, newState);
-                return true;
-            } catch (Exception e) {
-                return false;
-            }
+        boolean activated = shouldLookActive(pos);
+        if (currentState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED) != activated) {
+            // Flag 3 updates the block and redraws it.
+            level.setBlock(pos, currentState.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, activated), 3);
         }
         return true;
     }
 
-    private static void markBlockForRerender(BlockPos pos, BlockState oldState, BlockState newState) {
-        var minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || minecraft.levelRenderer == null) return;
-        try {
-            // Forcefully notify the renderer that this block changed
-            minecraft.level.sendBlockUpdated(pos, oldState, newState, 3);
-            minecraft.level.setBlocksDirty(pos, oldState, newState);
-        } catch (Exception e) {
-            // Ignore errors during rendering update
+    /**
+     * Whether the client must not predict the break of the block at {@code pos} when {@code player}
+     * mines it, because the server keeps it: a spawner the mod disables instead, unless it is
+     * treated as vanilla, or a single-use spawner that a player not in Creative uses up. A spawner
+     * tool may break a spawner when the server allows it (breakWithSpawnerTools): then the block
+     * goes when the server says so, a moment later, instead of flickering when it does not.
+     */
+    public static boolean serverKeepsWhenMined(Level level, BlockPos pos, Player player) {
+        BlockState state = level.getBlockState(pos);
+        if (state.getBlock() instanceof SpawnerBlock && state.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)
+                && level.getBlockEntity(pos) instanceof SpawnerBlockEntity) {
+            return !vanillaTreatedSpawners.contains(pos);
         }
+        return !player.isCreative() && (OneShotSpawners.isOneShot(state) || state.is(ModBlocksItems.USED_MONSTER_BOX.get()));
     }
 
     /**
@@ -207,33 +178,33 @@ public class ClientSpawnerData {
     }
 
     public static void onChunkLoaded(int chunkX, int chunkZ) {
-        refreshSpawnersInChunk(chunkX, chunkZ);
+        for (BlockPos pos : new ArrayList<>(playerDisabledSpawners.keySet())) {
+            if (inChunk(pos, chunkX, chunkZ) && applyLook(pos)) {
+                spawnersNeedingUpdate.remove(pos);
+            }
+        }
         for (BlockPos pos : new ArrayList<>(usedUpOneShots)) {
-            if ((pos.getX() >> 4) == chunkX && (pos.getZ() >> 4) == chunkZ) {
+            if (inChunk(pos, chunkX, chunkZ)) {
                 applyUsedLook(pos);
             }
         }
     }
 
-    private static void refreshSpawnersInChunk(int chunkX, int chunkZ) {
-        Set<BlockPos> allTrackedSpawners = new HashSet<>(playerDisabledSpawners.keySet());
-        allTrackedSpawners.addAll(vanillaTreatedSpawners);
-
-        for (BlockPos pos : allTrackedSpawners) {
-            if ((pos.getX() >> 4) == chunkX && (pos.getZ() >> 4) == chunkZ) {
-                Boolean isDisabled = playerDisabledSpawners.get(pos);
-                boolean effectivelyDisabled = isDisabled != null && isDisabled;
-                boolean success = updateBlockStateInWorld(pos, effectivelyDisabled, true);
-                if (success) spawnersNeedingUpdate.remove(pos);
-                else spawnersNeedingUpdate.add(pos);
-            }
-        }
+    /**
+     * Forgets the spawners of a chunk this client no longer sees. The server sends their state
+     * again with the chunk when it comes back, and a spawner that became active again meanwhile
+     * (respawn time) is then not kept disabled here: the server sends no state for it at all.
+     */
+    public static void onChunkUnloaded(int chunkX, int chunkZ) {
+        playerDisabledSpawners.keySet().removeIf(pos -> inChunk(pos, chunkX, chunkZ));
+        vanillaTreatedSpawners.removeIf(pos -> inChunk(pos, chunkX, chunkZ));
+        spawnersNeedingUpdate.removeIf(pos -> inChunk(pos, chunkX, chunkZ));
+        usedUpOneShots.removeIf(pos -> inChunk(pos, chunkX, chunkZ));
+        replacedByUsedLook.keySet().removeIf(pos -> inChunk(pos, chunkX, chunkZ));
     }
 
-    public static void removeSpawner(BlockPos pos) {
-        playerDisabledSpawners.remove(pos);
-        spawnersNeedingUpdate.remove(pos);
-        vanillaTreatedSpawners.remove(pos);
+    private static boolean inChunk(BlockPos pos, int chunkX, int chunkZ) {
+        return (pos.getX() >> 4) == chunkX && (pos.getZ() >> 4) == chunkZ;
     }
 
     private static String getCurrentPlayerName() {
@@ -245,76 +216,35 @@ public class ClientSpawnerData {
 
     public static void refreshPendingSpawnerStates() {
         if (spawnersNeedingUpdate.isEmpty()) return;
-        var spawnersToUpdate = new HashSet<>(spawnersNeedingUpdate);
-        for (BlockPos pos : spawnersToUpdate) {
-            Boolean isDisabled = playerDisabledSpawners.get(pos);
-            if (isDisabled != null) {
-                boolean success = updateBlockStateInWorld(pos, isDisabled, true);
-                if (success) spawnersNeedingUpdate.remove(pos);
-            }
-        }
+        spawnersNeedingUpdate.removeIf(ClientSpawnerData::applyLook);
     }
 
     private static void scheduleTargetedRefresh() {
-        var minecraft = Minecraft.getInstance();
-        if (minecraft != null) {
-            minecraft.execute(ClientSpawnerData::refreshPendingSpawnerStates);
-        }
+        Minecraft.getInstance().execute(ClientSpawnerData::refreshPendingSpawnerStates);
     }
 
     public static void periodicRefresh() {
         long currentTime = System.currentTimeMillis();
-        if (currentTime - lastPeriodicRefresh < 5000) return; // Check more often (5s)
+        if (currentTime - lastPeriodicRefresh < 5000) return;
         lastPeriodicRefresh = currentTime;
-        if (!spawnersNeedingUpdate.isEmpty() && getCurrentPlayerName() != null) {
+        if (getCurrentPlayerName() != null) {
             refreshPendingSpawnerStates();
         }
     }
 
+    /**
+     * A safety net, once a second: puts back the look of known spawners near the player if
+     * something else changed their block state.
+     */
     public static void monitorAndCorrectSpawnerStates() {
         var minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null) return;
 
         int radius = 32;
-        var playerPos = minecraft.player.blockPosition();
-        var spawnersToCorrect = new ArrayList<BlockPos>();
-
-        // We iterate over known spawners.
-        for (Map.Entry<BlockPos, Boolean> entry : playerDisabledSpawners.entrySet()) {
-            BlockPos spawnerPos = entry.getKey();
-
-            // Skip far away
-            if (spawnerPos.distSqr(playerPos) > radius * radius) continue;
-            // Skip unloaded
-            if (!minecraft.level.isLoaded(spawnerPos)) continue;
-
-            var currentState = minecraft.level.getBlockState(spawnerPos);
-
-            // If block is AIR (client prediction), skip. DO NOT REMOVE DATA.
-            if (!(currentState.getBlock() instanceof SpawnerBlock)) continue;
-
-            if (!currentState.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) continue;
-
-            boolean isDisabled = entry.getValue();
-            boolean isVanillaTreated = vanillaTreatedSpawners.contains(spawnerPos);
-            boolean currentActivated = currentState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED);
-
-            boolean expectedActivated;
-            if (isVanillaTreated) {
-                expectedActivated = false;
-            } else {
-                expectedActivated = !isDisabled;
-            }
-
-            if (currentActivated != expectedActivated) {
-                spawnersToCorrect.add(spawnerPos);
-            }
-        }
-
-        for (BlockPos pos : spawnersToCorrect) {
-            Boolean isDisabled = playerDisabledSpawners.get(pos);
-            if (isDisabled != null) {
-                updateBlockStateInWorld(pos, isDisabled, true);
+        BlockPos playerPos = minecraft.player.blockPosition();
+        for (BlockPos spawnerPos : playerDisabledSpawners.keySet()) {
+            if (spawnerPos.distSqr(playerPos) <= radius * radius) {
+                applyLook(spawnerPos);
             }
         }
     }

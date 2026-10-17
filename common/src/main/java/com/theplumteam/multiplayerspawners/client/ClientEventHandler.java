@@ -30,8 +30,7 @@ public class ClientEventHandler {
      * Called when a chunk is unloaded on the client
      */
     public static void onChunkUnload(LevelChunk chunk) {
-        // Cleanup is handled automatically by the optimized system
-        Constants.LOG.trace("CLIENT: Chunk unloaded at {}", chunk.getPos());
+        ClientSpawnerData.onChunkUnloaded(chunk.getPos().getMinBlockX() >> 4, chunk.getPos().getMinBlockZ() >> 4);
     }
 
     /**
@@ -59,9 +58,9 @@ public class ClientEventHandler {
             ClientSpawnerData.refreshPendingSpawnerStates();
         }
 
-        // Monitor and correct spawner states every tick for immediate response to texture resets
-        // This is the key fix for the break cancellation issue
-        ClientSpawnerData.monitorAndCorrectSpawnerStates();
+        if (tickCounter % 20 == 0) {
+            ClientSpawnerData.monitorAndCorrectSpawnerStates();
+        }
 
         // Much less frequent periodic refresh - every 600 ticks (30 seconds)
         if (tickCounter >= 600) {
