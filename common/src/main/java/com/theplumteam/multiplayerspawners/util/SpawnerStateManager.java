@@ -1,7 +1,11 @@
 package com.theplumteam.multiplayerspawners.util;
 
+import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
@@ -16,6 +20,9 @@ import java.util.Set;
  * making it robust and portable if the spawner is moved.
  */
 public class SpawnerStateManager {
+
+    /** Items that break a spawner like vanilla when {@code breakWithSpawnerTools} is on. */
+    public static final TagKey<Item> BREAKS_SPAWNERS = TagKey.create(Registries.ITEM, Constants.id("breaks_spawners"));
 
     /**
      * Gets the data accessor for a spawner at a given position.
@@ -109,6 +116,11 @@ public class SpawnerStateManager {
             times.clear();
             return false;
         }
+        long respawnTicks = respawnTicks();
+        if (respawnTicks <= 0) {
+            // Never: nothing to expire. Each hit records its time, so it counts once respawn is on.
+            return false;
+        }
         long now = level.getGameTime();
         boolean changed = times.keySet().retainAll(disabledPlayers);
         for (String player : disabledPlayers) {
@@ -117,15 +129,12 @@ public class SpawnerStateManager {
             }
         }
         boolean expired = false;
-        long respawnTicks = respawnTicks();
-        if (respawnTicks > 0) {
-            for (Iterator<String> players = disabledPlayers.iterator(); players.hasNext(); ) {
-                String player = players.next();
-                if (now - times.get(player) >= respawnTicks) {
-                    players.remove();
-                    times.remove(player);
-                    expired = true;
-                }
+        for (Iterator<String> players = disabledPlayers.iterator(); players.hasNext(); ) {
+            String player = players.next();
+            if (now - times.get(player) >= respawnTicks) {
+                players.remove();
+                times.remove(player);
+                expired = true;
             }
         }
         if (changed || expired) {

@@ -3,10 +3,7 @@ package com.theplumteam.multiplayerspawners.network;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 //? if >=1.21 {
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -46,12 +43,5 @@ public class FabricNetworkHandler extends NetworkHandler {
         packet.write(buf);
         ServerPlayNetworking.send(player, SpawnerStatePacket.ID, buf);
         *///?}
-    }
-
-    @Override
-    protected void sendToPlayersTracking(ServerLevel level, BlockPos pos, SpawnerStatePacket packet) {
-        for (ServerPlayer player : PlayerLookup.tracking(level, pos)) {
-            sendToPlayer(player, packet);
-        }
     }
 }

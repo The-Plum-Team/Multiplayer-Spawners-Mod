@@ -10,6 +10,7 @@ import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -40,8 +41,6 @@ public abstract class NetworkHandler {
 
     protected abstract void sendToPlayer(ServerPlayer player, SpawnerStatePacket packet);
 
-    protected abstract void sendToPlayersTracking(ServerLevel level, BlockPos pos, SpawnerStatePacket packet);
-
     /**
      * Sends one spawner's state to one player.
      *
@@ -52,11 +51,14 @@ public abstract class NetworkHandler {
     }
 
     /**
-     * Sends one spawner's state to every player tracking its chunk.
+     * Sends one spawner's state to every player tracking its chunk, each with only what concerns
+     * them.
      */
     public void sendSpawnerStateToTracking(Level level, BlockPos pos, Set<String> disabledPlayers, boolean treatedAsVanilla) {
         if (level instanceof ServerLevel serverLevel) {
-            sendToPlayersTracking(serverLevel, pos, SpawnerStatePacket.single(pos, disabledPlayers, false, treatedAsVanilla));
+            for (ServerPlayer player : tracking(serverLevel, pos)) {
+                sendToPlayer(player, SpawnerStatePacket.single(pos, forPlayer(disabledPlayers, player), false, treatedAsVanilla));
+            }
         }
     }
 
@@ -65,9 +67,11 @@ public abstract class NetworkHandler {
      */
     public void sendOneShotStateToTracking(Level level, BlockPos pos, Set<String> usedBy) {
         if (level instanceof ServerLevel serverLevel) {
-            List<SpawnerStatePacket.SpawnerUpdate> updates = new ArrayList<>(1);
-            updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, Set.copyOf(usedBy), false, true));
-            sendToPlayersTracking(serverLevel, pos, new SpawnerStatePacket(updates, false));
+            for (ServerPlayer player : tracking(serverLevel, pos)) {
+                List<SpawnerStatePacket.SpawnerUpdate> updates = new ArrayList<>(1);
+                updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, forPlayer(usedBy, player), false, true));
+                sendToPlayer(player, new SpawnerStatePacket(updates, false));
+            }
         }
     }
 
@@ -96,22 +100,58 @@ public abstract class NetworkHandler {
      * Sends the state of the spawners of one chunk, as the chunk streams to a player.
      */
     public void sendChunkSpawnerStatesToPlayer(ServerPlayer player, LevelChunk chunk) {
-        List<SpawnerStatePacket.SpawnerUpdate> updates = collectSpawnerUpdates(chunk);
-        for (int i = 0; i < updates.size(); i += BATCH_SIZE) {
-            List<SpawnerStatePacket.SpawnerUpdate> batch = new ArrayList<>(updates.subList(i, Math.min(updates.size(), i + BATCH_SIZE)));
-            sendToPlayer(player, new SpawnerStatePacket(batch, true));
-        }
+        sendChunkUpdates(player, collectSpawnerUpdates(chunk));
     }
 
     /**
      * Sends the state of the spawners of one chunk to every player tracking it.
      */
     public void sendChunkSpawnerStatesToTracking(ServerLevel level, LevelChunk chunk) {
-        List<SpawnerStatePacket.SpawnerUpdate> updates = collectSpawnerUpdates(chunk);
-        for (int i = 0; i < updates.size(); i += BATCH_SIZE) {
-            List<SpawnerStatePacket.SpawnerUpdate> batch = new ArrayList<>(updates.subList(i, Math.min(updates.size(), i + BATCH_SIZE)));
-            sendToPlayersTracking(level, new BlockPos(chunk.getPos().getMinBlockX(), 0, chunk.getPos().getMinBlockZ()), new SpawnerStatePacket(batch, false));
+        List<ServerPlayer> players = tracking(level, new BlockPos(chunk.getPos().getMinBlockX(), 0, chunk.getPos().getMinBlockZ()));
+        if (players.isEmpty()) {
+            return;
         }
+        List<SpawnerStatePacket.SpawnerUpdate> updates = collectSpawnerUpdates(chunk);
+        for (ServerPlayer player : players) {
+            sendChunkUpdates(player, updates);
+        }
+    }
+
+    /**
+     * Sends a chunk's updates to one player: only the spawners that are not in their default state
+     * for them (the client has none of the chunk's spawners when the chunk arrives, so the others
+     * need nothing), with only their own name, in batches.
+     */
+    private void sendChunkUpdates(ServerPlayer player, List<SpawnerStatePacket.SpawnerUpdate> updates) {
+        List<SpawnerStatePacket.SpawnerUpdate> forPlayer = new ArrayList<>();
+        for (SpawnerStatePacket.SpawnerUpdate update : updates) {
+            Set<String> names = forPlayer(update.disabledPlayers(), player);
+            if (!names.isEmpty() || update.treatedAsVanilla()) {
+                forPlayer.add(new SpawnerStatePacket.SpawnerUpdate(update.pos(), names, update.treatedAsVanilla(), update.oneShot()));
+            }
+        }
+        for (int i = 0; i < forPlayer.size(); i += BATCH_SIZE) {
+            List<SpawnerStatePacket.SpawnerUpdate> batch = new ArrayList<>(forPlayer.subList(i, Math.min(forPlayer.size(), i + BATCH_SIZE)));
+            sendToPlayer(player, new SpawnerStatePacket(batch, true));
+        }
+    }
+
+    /**
+     * The players whose client has the chunk of {@code pos}, without asking the level for that
+     * chunk: this also runs from the chunk's own load event, and looking the loading chunk up from
+     * there waits for itself forever.
+     */
+    private static List<ServerPlayer> tracking(ServerLevel level, BlockPos pos) {
+        return level.getChunkSource().chunkMap.getPlayers(new ChunkPos(pos.getX() >> 4, pos.getZ() >> 4), false);
+    }
+
+    /**
+     * What a client needs of a list of player names: only whether its own player is in it. The
+     * names of the others stay on the server.
+     */
+    private static Set<String> forPlayer(Set<String> names, ServerPlayer player) {
+        String name = player.getName().getString();
+        return names.contains(name) ? Set.of(name) : Set.of();
     }
 
     /**
@@ -128,8 +168,8 @@ public abstract class NetworkHandler {
                 if (!disabledPlayers.isEmpty() || treatedAsVanilla) {
                     updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, Set.copyOf(disabledPlayers), treatedAsVanilla));
                 }
-            } else if (blockEntity instanceof OneShotData oneShot && !oneShot.multiplayerspawners$getUsedBy().isEmpty()
-                    && OneShotSpawners.isOneShot(blockEntity.getBlockState())) {
+            } else if (blockEntity instanceof OneShotData oneShot && OneShotSpawners.isOneShot(blockEntity.getBlockState())
+                    && !oneShot.multiplayerspawners$getUsedBy().isEmpty()) {
                 updates.add(new SpawnerStatePacket.SpawnerUpdate(pos, Set.copyOf(oneShot.multiplayerspawners$getUsedBy()), false, true));
             }
         });

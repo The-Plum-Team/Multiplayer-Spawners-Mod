@@ -15,8 +15,10 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.WallTorchBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.Vec3;
 //? if <1.21.2 {
 /*import org.joml.Vector3f;
@@ -31,7 +33,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 /**
  * Tracks recently placed torches that are in close proximity to a spawner.
  * If a torch is too close, it will be extinguished after a configurable delay with dramatic particle effects.
- * This implementation uses an efficient, localized search instead of a global cache.
  */
 public class TorchTracker {
     private static final Map<ResourceKey<Level>, Map<BlockPos, Long>> trackedTorches = new ConcurrentHashMap<>();
@@ -123,37 +124,37 @@ public class TorchTracker {
     }
 
     /**
-     * Performs a localized search for the nearest spawner within SPAWNER_DISTANCE of a given position.
-     * This is much more efficient than checking against a dimension-wide cache.
+     * The nearest spawner within SPAWNER_DISTANCE of a position, or null. Spawners are block
+     * entities, so this looks only at the block entities of the loaded chunks the range covers
+     * (at most four), instead of every block of the range.
      * Player-placed spawners are ignored if the config option treatPlacedSpawnersAsVanilla is enabled.
-     * @return The BlockPos of the nearest spawner, or null if none are in range.
      */
     private static BlockPos findNearbySpawner(Level level, BlockPos centerPos) {
         BlockPos nearest = null;
-        // Start with a distance squared that is just outside our desired radius
         double nearestDistSq = SPAWNER_DISTANCE * SPAWNER_DISTANCE + 1;
+        boolean skipPlaced = ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
 
-        // Iterate in a cube around the center position
-        for (BlockPos pos : BlockPos.betweenClosed(centerPos.offset(-SPAWNER_DISTANCE, -SPAWNER_DISTANCE, -SPAWNER_DISTANCE),
-                centerPos.offset(SPAWNER_DISTANCE, SPAWNER_DISTANCE, SPAWNER_DISTANCE))) {
-            if (level.getBlockState(pos).is(Blocks.SPAWNER)) {
-
-                // Check if this spawner is player-placed and should be treated as vanilla
-                if (ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get()) {
-                    if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
-                        SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
-                        if (accessor.multiplayerspawners$isPlayerPlaced()) {
-                            // Ignore this spawner, it's treated as vanilla (no torch extinguishing)
-                            continue;
-                        }
-                    }
+        for (int chunkX = (centerPos.getX() - SPAWNER_DISTANCE) >> 4; chunkX <= (centerPos.getX() + SPAWNER_DISTANCE) >> 4; chunkX++) {
+            for (int chunkZ = (centerPos.getZ() - SPAWNER_DISTANCE) >> 4; chunkZ <= (centerPos.getZ() + SPAWNER_DISTANCE) >> 4; chunkZ++) {
+                // Only loaded chunks: this must never load one.
+                LevelChunk chunk = level.getChunkSource().getChunk(chunkX, chunkZ, false);
+                if (chunk == null) {
+                    continue;
                 }
-
-                double distSq = centerPos.distSqr(pos);
-                // We only care about spawners within the spherical distance and closer than any previously found
-                if (distSq <= SPAWNER_DISTANCE * SPAWNER_DISTANCE && distSq < nearestDistSq) {
-                    nearestDistSq = distSq;
-                    nearest = pos.immutable();
+                for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
+                    if (!(blockEntity instanceof SpawnerBlockEntity spawnerBlockEntity) || !blockEntity.getBlockState().is(Blocks.SPAWNER)) {
+                        continue;
+                    }
+                    if (skipPlaced && ((SpawnerDataAccessor) spawnerBlockEntity.getSpawner()).multiplayerspawners$isPlayerPlaced()) {
+                        // Treated as vanilla: it puts out no torches.
+                        continue;
+                    }
+                    BlockPos pos = blockEntity.getBlockPos();
+                    double distSq = centerPos.distSqr(pos);
+                    if (distSq <= SPAWNER_DISTANCE * SPAWNER_DISTANCE && distSq < nearestDistSq) {
+                        nearestDistSq = distSq;
+                        nearest = pos.immutable();
+                    }
                 }
             }
         }
@@ -269,7 +270,7 @@ public class TorchTracker {
                         BlockPos nearestSpawner = findNearbySpawner(level, pos);
                         if (nearestSpawner != null) {
                             double distanceToSpawner = Math.sqrt(pos.distSqr(nearestSpawner));
-                            Constants.LOG.info("DEBUG: Spawner at {} will target torch at {} after additional delay (distance: {} <= {})",
+                            Constants.logTorchMechanics("Spawner at {} will target torch at {} after additional delay (distance: {} <= {})",
                                     nearestSpawner, pos, String.format("%.1f", distanceToSpawner), SPAWNER_DISTANCE);
 
                             // Add additional delay before shooting
@@ -281,7 +282,7 @@ public class TorchTracker {
                                 }
                             });
                         } else {
-                            Constants.LOG.info("DEBUG: No spawner found nearby. Torch at {} is now safe and remains lit.", pos);
+                            Constants.logTorchMechanics("No spawner found nearby. Torch at {} is now safe and remains lit.", pos);
                         }
                     } else {
                         Constants.logTorchMechanics("Block at {} is no longer a torch. Current block: {}. Ignoring.", pos, currentState.getBlock());
@@ -422,7 +423,7 @@ public class TorchTracker {
             level.setBlock(pos, newState, 3);
             double distance = Math.sqrt(pos.distSqr(spawnerPos));
             int delaySeconds = ModConfig.SERVER.torchExtinguishDelaySeconds.get();
-            Constants.LOG.info("Spawner at {} extinguished torch at {} with lightning-fast dark magic after {}s delay! (distance: {})",
+            Constants.logTorchMechanics("Spawner at {} extinguished torch at {} with lightning-fast dark magic after {}s delay! (distance: {})",
                     spawnerPos, pos, delaySeconds, String.format("%.1f", distance));
         }
     }

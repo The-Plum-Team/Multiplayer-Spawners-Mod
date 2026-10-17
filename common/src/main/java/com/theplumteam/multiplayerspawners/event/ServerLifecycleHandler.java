@@ -2,6 +2,7 @@ package com.theplumteam.multiplayerspawners.event;
 
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
+import com.theplumteam.multiplayerspawners.util.NearPlayers;
 import com.theplumteam.multiplayerspawners.util.TorchTracker;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -35,5 +36,6 @@ public class ServerLifecycleHandler {
 
     public static void onServerStopping(MinecraftServer server) {
         TorchTracker.clear();
+        NearPlayers.clear();
     }
 }

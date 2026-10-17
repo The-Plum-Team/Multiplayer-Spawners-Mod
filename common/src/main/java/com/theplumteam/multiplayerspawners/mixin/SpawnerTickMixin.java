@@ -3,11 +3,11 @@ package com.theplumteam.multiplayerspawners.mixin;
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
+import com.theplumteam.multiplayerspawners.util.NearPlayers;
 import com.theplumteam.multiplayerspawners.util.SpawnerAgeing;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import com.theplumteam.multiplayerspawners.util.SpawnerStateManager;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BaseSpawner;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
@@ -63,21 +63,7 @@ public abstract class SpawnerTickMixin {
         // The players the spawner itself would count as near (the same test as vanilla's
         // isNearPlayer, with this spawner's own range). With none, the spawner's own logic decides.
         double range = ((BaseSpawnerAccessor) spawner).multiplayerspawners$getRequiredPlayerRange();
-        double x = pos.getX() + 0.5, y = pos.getY() + 0.5, z = pos.getZ() + 0.5;
-        boolean anyNear = false;
-        for (Player player : level.players()) {
-            if (player.isSpectator() || !player.isAlive() || player.distanceToSqr(x, y, z) >= range * range) {
-                continue;
-            }
-            if (!disabledPlayers.contains(player.getName().getString())) {
-                // Someone near still has it active: let the spawner work.
-                return;
-            }
-            anyNear = true;
-        }
-
-        if (anyNear) {
-            Constants.debug("Spawner at {} tick cancelled because all nearby players have it disabled.", pos);
+        if (NearPlayers.allNearHaveDisabled(level, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, range, disabledPlayers)) {
             SpawnerAgeing.endTick();
             ci.cancel();
         }
