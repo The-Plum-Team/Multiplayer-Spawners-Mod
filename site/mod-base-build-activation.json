@@ -1,6 +1,6 @@
 {
   "kind": "mod-base.ci.activation",
-  "mode": "shadow",
+  "mode": "shared-build-and-e2e",
   "profile": "block-pops",
   "repository": "The-Plum-Team/Multiplayer-Spawners-Mod",
   "rollback_from": null,
