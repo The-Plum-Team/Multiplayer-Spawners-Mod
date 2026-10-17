@@ -49,6 +49,13 @@ public abstract class LevelChunkMixin {
     *///?}
         // Only run on client side
         if (this.getLevel().isClientSide()) {
+            // A single-use spawner used up for this player keeps its used-up look.
+            BlockState usedLook = ClientSpawnerData.usedLookFor(pos, state);
+            if (usedLook != state) {
+                cir.setReturnValue(this.setBlockState(pos, usedLook, flags));
+                return;
+            }
+
             // Check if we are dealing with a spawner block that has our property
             if (state.getBlock() instanceof SpawnerBlock && state.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
 

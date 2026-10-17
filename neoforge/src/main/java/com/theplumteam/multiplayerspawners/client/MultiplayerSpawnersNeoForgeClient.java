@@ -21,17 +21,19 @@ public class MultiplayerSpawnersNeoForgeClient {
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {
-        // The unlit torch textures have transparent pixels. From 26.1 the game derives the layer
+        // The unlit torch and used monster box textures have transparent pixels. From 26.1 the game derives the layer
         // from the texture itself.
         //? if >=1.21.6 && <26.1 {
         event.enqueueWork(() -> {
             ItemBlockRenderTypes.setRenderLayer(ModBlocksItems.UNLIT_TORCH.get(), ChunkSectionLayer.CUTOUT);
             ItemBlockRenderTypes.setRenderLayer(ModBlocksItems.UNLIT_WALL_TORCH.get(), ChunkSectionLayer.CUTOUT);
+            ItemBlockRenderTypes.setRenderLayer(ModBlocksItems.USED_MONSTER_BOX.get(), ChunkSectionLayer.CUTOUT);
         });
         //?} else if <1.21.6 {
         /*event.enqueueWork(() -> {
             ItemBlockRenderTypes.setRenderLayer(ModBlocksItems.UNLIT_TORCH.get(), RenderType.cutout());
             ItemBlockRenderTypes.setRenderLayer(ModBlocksItems.UNLIT_WALL_TORCH.get(), RenderType.cutout());
+            ItemBlockRenderTypes.setRenderLayer(ModBlocksItems.USED_MONSTER_BOX.get(), RenderType.cutout());
         });
         *///?}
     }

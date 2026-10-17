@@ -1,5 +1,6 @@
 {
     "item.multiplayerspawners.unlit_torch": "Unlit Torch",
     "block.multiplayerspawners.unlit_torch": "Unlit Torch",
-    "block.multiplayerspawners.unlit_wall_torch": "Unlit Torch"
+    "block.multiplayerspawners.unlit_wall_torch": "Unlit Torch",
+    "block.multiplayerspawners.used_monster_box": "Monster Box"
 }
