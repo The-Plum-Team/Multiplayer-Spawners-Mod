@@ -25,6 +25,7 @@ The scenario, in the order it runs (each checkpoint fails the lane on its own):
   break-link        Bob clicks the chat link and the spawner is removed
   replaced          a new spawner where the removed one stood is active for players who had disabled the old one
   quiet             with notices off, disabling a spawner sends none of the mod's informational messages
+  group-again       a later hit, on a spawner disabled for others or for the hitter, also disables it for the players near
   respawn           with a respawn time set, a disabled spawner becomes active again for its player
   torch             a torch Alice places next to a spawner is put out
   player-placed     a spawner Alice places is treated as vanilla and breaks normally
@@ -86,7 +87,7 @@ RCON_PASSWORD = "multiplayerspawners-e2e"
 
 CHECKPOINTS = ("joined", "initial-view", "spawns", "group-disable", "per-player-view", "suppressed",
                "active-for-others", "break-message", "joined-disable", "persistence", "join-sync",
-               "break-link", "replaced", "quiet", "respawn", "torch", "player-placed", "break-tools", "stopped",
+               "break-link", "replaced", "quiet", "group-again", "respawn", "torch", "player-placed", "break-tools", "stopped",
                "evidence")
 
 # The world is a flat world: the ground is the grass block layer at y=-61, players stand at y=-60.
@@ -893,6 +894,49 @@ class Lane:
         self.check("ON" in answer, f"turning notices back on answered {answer!r}")
         x, y, z = S1
         self.run(f"setblock {x} {y} {z} minecraft:air")
+        self.clear_spawned()
+
+    def placed_held_back(self, block: tuple[int, int, int]) -> None:
+        """A new spawner at `block` that does not spawn during the step: no pig takes a hit."""
+
+        self.place_spawner(block)
+        x, y, z = block
+        self.run(f"data merge block {x} {y} {z} {{Delay:600s}}")
+        self.clear_spawned()
+
+    def step_group_again(self) -> None:
+        # Group disabling is not only for a spawner's first hit: whoever stands near a later hit
+        # and still has the spawner active gets it disabled too.
+        self.placed_held_back(S1)
+        self.park("Alice", S1)
+        self.park("Bob", S1, 40)
+        self.hit("Carol", S1, (3, 0))
+        self.wait_for("Carol alone in S1's DisabledPlayers", lambda: self.disabled_players(S1) == {"Carol"}, 10)
+        # Only Carol disabled it: Alice's first hit, with Bob near.
+        self.park("Carol", S1, 60)
+        self.look_at_block("Bob", S1, (2, 3))
+        bob = len(self.clients["Bob"].chat())
+        self.hit("Alice", S1, (0, -3))
+        self.wait_for("Carol, Alice and Bob in S1's DisabledPlayers",
+                      lambda: self.disabled_players(S1) == {"Carol", "Alice", "Bob"}, 10)
+        self.expect_chat("Bob", "A spawner in this area has been disabled by Alice.", bob)
+        # Already disabled for Carol: her next hit, with Alice near.
+        x, y, z = S1
+        self.run(f"setblock {x} {y} {z} minecraft:air")
+        self.placed_held_back(S1)
+        self.park("Alice", S1)
+        self.park("Bob", S1, 40)
+        self.hit("Carol", S1, (3, 0))
+        self.wait_for("Carol alone in the new S1's DisabledPlayers", lambda: self.disabled_players(S1) == {"Carol"}, 10)
+        self.look_at_block("Alice", S1, (0, -3))
+        alice = len(self.clients["Alice"].chat())
+        self.hit("Carol", S1, (3, 0))
+        self.wait_for("Carol and Alice in S1's DisabledPlayers", lambda: self.disabled_players(S1) == {"Carol", "Alice"}, 10)
+        self.expect_chat("Alice", "A spawner in this area has been disabled by Carol.", alice)
+        self.check(self.block_is(S1, "minecraft:spawner"), "a hit broke the spawner")
+        self.run(f"setblock {x} {y} {z} minecraft:air")
+        self.park("Alice", S2)
+        self.park("Carol", S2)
         self.clear_spawned()
 
     def step_respawn(self) -> None:

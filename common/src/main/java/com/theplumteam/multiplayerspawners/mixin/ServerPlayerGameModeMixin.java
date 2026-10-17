@@ -10,8 +10,6 @@ import com.theplumteam.multiplayerspawners.util.OneShotSpawners;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
 import com.theplumteam.multiplayerspawners.util.SpawnerStateManager;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.tags.TagKey;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -22,7 +20,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -37,7 +34,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.util.List;
 import java.util.Set;
 
 @Mixin(ServerPlayerGameMode.class)
@@ -48,10 +44,6 @@ public abstract class ServerPlayerGameModeMixin {
 
     @Unique
     private static final String DUNGEON_PICKAXE_ID = "composite_material:dungeon_pickaxe";
-
-    /** Items that break a spawner like vanilla when {@code breakWithSpawnerTools} is on. */
-    @Unique
-    private static final TagKey<Item> multiplayerspawners$BREAKS_SPAWNERS = TagKey.create(Registries.ITEM, Constants.id("breaks_spawners"));
 
     @Unique
     private boolean multiplayerspawners$isDungeonPickaxe(ItemStack itemStack) {
@@ -71,29 +63,55 @@ public abstract class ServerPlayerGameModeMixin {
         Constants.debug("Dropped empty spawner for player {} at {} using dungeon pickaxe", player.getName().getString(), pos);
     }
 
+    /**
+     * Disables the spawner for the player who hit it and, with group disabling, for the players
+     * near it who still had it active, tells the players who see it, and sends the notices.
+     * Every hit does this, also on a spawner already disabled for the player or for others: a
+     * player who came near since is disabled as well.
+     *
+     * @return whether it was newly disabled for the player who hit it
+     */
     @Unique
-    private void multiplayerspawners$handleSpawnerInteraction(Level level, BlockPos pos, ServerPlayer player) {
-        String playerName = player.getName().getString();
-        SpawnerStateManager.disableSpawnerForPlayer(level, pos, playerName);
-        Constants.debug("Spawner at {} has been permanently disabled by player {}", pos, playerName);
+    private boolean multiplayerspawners$disable(Level level, BlockPos pos, ServerPlayer breaker) {
+        boolean newForBreaker = !SpawnerStateManager.isSpawnerDisabledForPlayer(level, pos, breaker.getName().getString());
+        boolean changed = newForBreaker;
+        if (newForBreaker) {
+            SpawnerStateManager.disableSpawnerForPlayer(level, pos, breaker.getName().getString());
+            Constants.debug("Spawner at {} has been disabled by player {}", pos, breaker.getName().getString());
+        }
 
-        multiplayerspawners$triggerImmediateClientFeedback(level, pos, player);
-        multiplayerspawners$sendRespawnNotice(player);
+        int playersAffected = 0;
+        if (ModConfig.SERVER.enableGroupDisabling.get()) {
+            AABB searchArea = new AABB(pos).inflate(ModConfig.SERVER.groupDisablingRadius.get());
+            for (Player nearby : level.getEntitiesOfClass(Player.class, searchArea)) {
+                if (nearby instanceof ServerPlayer serverPlayer && serverPlayer != breaker && !serverPlayer.isSpectator()
+                        && !SpawnerStateManager.isSpawnerDisabledForPlayer(level, pos, serverPlayer.getName().getString())) {
+                    SpawnerStateManager.disableSpawnerForPlayer(level, pos, serverPlayer.getName().getString());
+                    playersAffected++;
+                    Notices.send(serverPlayer, Component.literal("A spawner in this area has been disabled by "
+                            + breaker.getName().getString() + ".").withStyle(ChatFormatting.GOLD));
+                }
+            }
+        }
+        changed |= playersAffected > 0;
 
         if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
             SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
-            Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
+            Set<String> disabledPlayers = Set.copyOf(accessor.multiplayerspawners$getDisabledPlayers());
             boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
                     && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
-
-            NetworkHandler.getInstance().sendSpawnerStateToTracking(level, pos, disabledPlayers, treatedAsVanilla);
-            level.sendBlockUpdated(pos, level.getBlockState(pos), level.getBlockState(pos), 3);
+            if (changed) {
+                NetworkHandler.getInstance().sendSpawnerStateToTracking(level, pos, disabledPlayers, treatedAsVanilla);
+            } else {
+                // Nothing changed: the player who hit it gets its state again all the same.
+                NetworkHandler.getInstance().sendSpawnerStateToPlayer(breaker, pos, disabledPlayers, false, treatedAsVanilla);
+            }
         }
-
-        if (ModConfig.SERVER.enableGroupDisabling.get()) {
-            int radius = ModConfig.SERVER.groupDisablingRadius.get();
-            multiplayerspawners$handleGroupDisabling(level, pos, player, radius);
+        if (playersAffected > 0) {
+            Notices.send(breaker, Component.literal("Group disabling: Spawner disabled for " + playersAffected
+                    + " nearby player(s).").withStyle(ChatFormatting.GOLD));
         }
+        return newForBreaker;
     }
 
     /** Tells the player when the spawner they disabled becomes active again, if it ever does. */
@@ -103,68 +121,6 @@ public abstract class ServerPlayerGameModeMixin {
         if (minutes > 0) {
             Notices.send(player, Component.literal("It will be active for you again in " + minutes
                     + (minutes == 1 ? " minute." : " minutes.")).withStyle(ChatFormatting.GRAY));
-        }
-    }
-
-    @Unique
-    private void multiplayerspawners$triggerImmediateClientFeedback(Level level, BlockPos pos, ServerPlayer player) {
-        // FIX: Force a vanilla block update packet first.
-        // This tells the client "The block is still here" (undoing the air prediction).
-        // Only AFTER this do we send our custom packet.
-        player.connection.send(new ClientboundBlockUpdatePacket(pos, level.getBlockState(pos)));
-
-        if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
-            SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
-            Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
-            boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
-                    && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
-
-            NetworkHandler.getInstance().sendSpawnerStateToPlayer(player, pos, disabledPlayers, false, treatedAsVanilla);
-        }
-    }
-
-    @Unique
-    private void multiplayerspawners$handleGroupDisabling(Level level, BlockPos spawnerPos, ServerPlayer triggeringPlayer, int radius) {
-        AABB searchArea = new AABB(spawnerPos).inflate(radius);
-        List<Player> nearbyPlayers = level.getEntitiesOfClass(Player.class, searchArea);
-        int playersAffected = 0;
-
-        for (Player nearbyPlayer : nearbyPlayers) {
-            if (nearbyPlayer instanceof ServerPlayer serverPlayer && !nearbyPlayer.equals(triggeringPlayer)) {
-                String nearbyPlayerName = serverPlayer.getName().getString();
-                if (!SpawnerStateManager.isSpawnerDisabledForPlayer(level, spawnerPos, nearbyPlayerName)) {
-                    SpawnerStateManager.disableSpawnerForPlayer(level, spawnerPos, nearbyPlayerName);
-                    playersAffected++;
-                    Notices.send(serverPlayer,
-                            Component.literal("A spawner in this area has been disabled by " + triggeringPlayer.getName().getString() + ".").withStyle(ChatFormatting.GOLD));
-                }
-            }
-        }
-
-        if (playersAffected > 0 && level.getBlockEntity(spawnerPos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
-            SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
-            Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
-            boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
-                    && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
-
-            NetworkHandler.getInstance().sendSpawnerStateToTracking(level, spawnerPos, disabledPlayers, treatedAsVanilla);
-            Notices.send(triggeringPlayer,
-                    Component.literal("Group disabling: Spawner disabled for " + playersAffected + " nearby player(s).").withStyle(ChatFormatting.GOLD));
-        }
-    }
-
-    @Unique
-    private void multiplayerspawners$forceVisualStateRefresh(Level level, BlockPos pos, ServerPlayer player) {
-        if (level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
-            // FIX: Ensure vanilla packet is sent first here too
-            player.connection.send(new ClientboundBlockUpdatePacket(pos, level.getBlockState(pos)));
-
-            SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
-            Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
-            boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
-                    && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
-
-            NetworkHandler.getInstance().sendSpawnerStateToPlayer(player, pos, disabledPlayers, true, treatedAsVanilla);
         }
     }
 
@@ -247,63 +203,39 @@ public abstract class ServerPlayerGameModeMixin {
 
             // A tool made to move spawners (item tag multiplayerspawners:breaks_spawners) breaks it like
             // vanilla, for everyone: the tool's own mod decides what drops.
-            if (ModConfig.SERVER.breakWithSpawnerTools.get() && this.player.getMainHandItem().is(multiplayerspawners$BREAKS_SPAWNERS)) {
+            if (ModConfig.SERVER.breakWithSpawnerTools.get() && this.player.getMainHandItem().is(SpawnerStateManager.BREAKS_SPAWNERS)) {
                 Constants.debug("Player {} breaks the spawner at {} with a spawner tool", this.player.getName().getString(), pos);
                 return;
             }
 
-            if (SpawnerStateManager.isSpawnerDisabledForPlayer(world, pos, this.player.getName().getString())) {
-                boolean canBreak = allowBreaking || isCreative;
-                multiplayerspawners$sendClickableBreakMessage(this.player, pos, canBreak);
-                multiplayerspawners$forceVisualStateRefresh(world, pos, this.player);
-                cir.setReturnValue(false);
-                cir.cancel();
-                return;
-            }
-
-            if (SpawnerStateManager.isSpawnerDisabledByAnyone(world, pos)) {
-                boolean canBreak = allowBreaking || isCreative;
-                multiplayerspawners$sendClickableBreakMessage(this.player, pos, canBreak);
-                SpawnerStateManager.disableSpawnerForPlayer(world, pos, this.player.getName().getString());
-                multiplayerspawners$triggerImmediateClientFeedback(world, pos, this.player);
-
-                if (world.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBlockEntity) {
-                    SpawnerDataAccessor accessor = (SpawnerDataAccessor) spawnerBlockEntity.getSpawner();
-                    Set<String> disabledPlayers = accessor.multiplayerspawners$getDisabledPlayers();
-                    boolean treatedAsVanilla = accessor.multiplayerspawners$isPlayerPlaced()
-                            && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
-                    NetworkHandler.getInstance().sendSpawnerStateToTracking(world, pos, disabledPlayers, treatedAsVanilla);
-                }
-
-                multiplayerspawners$forceVisualStateRefresh(world, pos, this.player);
-                Notices.send(player, Component.literal("It will no longer spawn creatures while you are nearby.").withStyle(ChatFormatting.RED));
-                multiplayerspawners$sendRespawnNotice(this.player);
-                cir.setReturnValue(false);
-                cir.cancel();
-                return;
-            }
-
-            if (requiredAttempts == 1) {
+            boolean canBreak = allowBreaking || isCreative;
+            boolean firstHit = !SpawnerStateManager.isSpawnerDisabledByAnyone(world, pos);
+            if (firstHit) {
+                // The first player to disable it gets what breaking it would have given.
                 if (multiplayerspawners$isDungeonPickaxe(this.player.getMainHandItem())) {
                     multiplayerspawners$dropEmptySpawner(world, pos, this.player);
                 }
                 multiplayerspawners$dropSpawnerRewards(world, pos, this.player);
-                multiplayerspawners$handleSpawnerInteraction(world, pos, this.player);
-                boolean canBreak = allowBreaking || isCreative;
-                multiplayerspawners$sendClickableBreakMessage(this.player, pos, canBreak);
-                cir.setReturnValue(false);
-                cir.cancel();
-                return;
             }
+            boolean newForPlayer = multiplayerspawners$disable(world, pos, this.player);
 
-            // Two-hit mode
-            if (multiplayerspawners$isDungeonPickaxe(this.player.getMainHandItem())) {
-                multiplayerspawners$dropEmptySpawner(world, pos, this.player);
+            if (!newForPlayer) {
+                // A further hit: the break link.
+                multiplayerspawners$sendClickableBreakMessage(this.player, pos, canBreak);
+            } else if (firstHit) {
+                multiplayerspawners$sendRespawnNotice(this.player);
+                // Two hits are the default: one-hit mode shows the break link at once.
+                if (requiredAttempts == 1) {
+                    multiplayerspawners$sendClickableBreakMessage(this.player, pos, canBreak);
+                }
+            } else {
+                // Others had disabled it already.
+                multiplayerspawners$sendClickableBreakMessage(this.player, pos, canBreak);
+                Notices.send(player, Component.literal("It will no longer spawn creatures while you are nearby.").withStyle(ChatFormatting.RED));
+                multiplayerspawners$sendRespawnNotice(this.player);
             }
-            multiplayerspawners$dropSpawnerRewards(world, pos, this.player);
-            multiplayerspawners$handleSpawnerInteraction(world, pos, this.player);
+            // The server keeps the block (the client did not predict its break).
             cir.setReturnValue(false);
-            cir.cancel();
         }
     }
 }
