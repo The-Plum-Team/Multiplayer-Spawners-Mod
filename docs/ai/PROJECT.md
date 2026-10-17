@@ -88,6 +88,11 @@ python3 scripts/release/build_matrix.py && python3 scripts/e2e/server_smoke.py -
 python3 scripts/e2e/multiplayer.py --all
 ```
 
+`scripts/e2e/multiplayer.py --extra-mod JAR` runs the same scenario with another mod installed on the
+server and the clients, to check compatibility. `scripts/e2e/load.py <node>` is an on-demand load
+test (not in CI): a few hundred spawners and tracked torches, three players joining and standing
+among them, with the server's tick rate measured by `/debug start|stop`.
+
 The server smoke test starts each lane's real dedicated server with the production jar and makes
 Mixin apply every mixin at start (`-Dmultiplayerspawners.mixinAudit=true`). Client-only mixins do
 not load on a server; check their targets against every version when changing them.

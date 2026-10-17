@@ -69,9 +69,9 @@ val generateItemDefinitions = tasks.register("generateItemDefinitions") {
 
 tasks.named<ProcessResources>("processResources") {
     inputs.property("minecraft", minecraftVersion)
-    // 1.21 renamed the loot_tables directory to loot_table, and tags/items to tags/item.
+    // 1.21 renamed the loot_tables directory to loot_table, and tags/items and tags/blocks to tags/item and tags/block.
     if (atLeast("1.21")) {
-        eachFile { path = path.replace("/loot_tables/", "/loot_table/").replace("/tags/items/", "/tags/item/") }
+        eachFile { path = path.replace("/loot_tables/", "/loot_table/").replace("/tags/items/", "/tags/item/").replace("/tags/blocks/", "/tags/block/") }
         includeEmptyDirs = false
     }
     // NeoForge (from 1.20.5) reads per-element lighting from neoforge_data; Forge from forge_data.

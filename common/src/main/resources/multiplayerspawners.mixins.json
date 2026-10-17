@@ -5,8 +5,10 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "BaseSpawnerAccessor",
+    "BlockEntityMixin",
     "BlockItemMixin",
     "BlockMixin",
+    "BoundTickingBlockEntityMixin",
     "LevelChunkMixin",
     "LevelMixin",
     "ServerPlayerGameModeMixin",
