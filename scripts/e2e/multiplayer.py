@@ -971,6 +971,9 @@ class Lane:
         answer = self.run(f"{MOD_ID} toggle_break_tools")
         self.check("ENABLED" in answer, f"turning spawner tools on answered {answer!r}")
         self.place_spawner(TOOLED)
+        # A new spawner spawns at once (Delay 0): hold it back, so that no pig takes Alice's hit.
+        x, y, z = TOOLED
+        self.run(f"data merge block {x} {y} {z} {{Delay:600s}}")
         self.clear_spawned()
         self.hold("Alice", SPAWNER_TOOL)
         self.look_at_block("Alice", TOOLED, (0, -2))
