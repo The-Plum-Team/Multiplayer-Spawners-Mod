@@ -31,6 +31,10 @@ import java.util.List;
  * state it had before anyone used it, so it triggers again for the next players. While every
  * player near it has used it up, it does not tick. A player who mines it uses it up for themselves.
  *
+ * <p>Their tick also runs on the client (Quark's box counts down there too and removes itself from
+ * the client's world), so the client keeps the block the same way: every player keeps seeing a
+ * block the server keeps.
+ *
  * <p>Nothing here refers to those mods' classes: the block entity's ticker is wrapped (its tag
  * decides), and a removal of that block during its own tick is caught in {@code Level.setBlock}.
  */
@@ -56,8 +60,12 @@ public final class OneShotSpawners {
         // Also forgets a tick that threw before afterTick ran.
         ticking = null;
         Level level = blockEntity.getLevel();
-        if (level == null || level.isClientSide() || !isOneShot(blockEntity.getBlockState())
-                || !(blockEntity instanceof OneShotData data)) {
+        if (level == null || !isOneShot(blockEntity.getBlockState()) || !(blockEntity instanceof OneShotData data)) {
+            return true;
+        }
+        if (level.isClientSide()) {
+            // The client does not know who used it up: it only keeps the block (interceptRemoval).
+            ticking = blockEntity;
             return true;
         }
         if (data.multiplayerspawners$getPristine() == null) {
@@ -87,6 +95,12 @@ public final class OneShotSpawners {
         if (blockEntity == null || blockEntity.getLevel() != level || !blockEntity.getBlockPos().equals(pos)
                 || newState.is(blockEntity.getBlockState().getBlock()) || !(blockEntity instanceof OneShotData data)) {
             return false;
+        }
+        if (level.isClientSide()) {
+            // The server keeps the block, so the client must too; a fresh block entity restarts the
+            // mod's own client-side countdown and particles.
+            renewClient(level, pos, blockEntity);
+            return true;
         }
         List<ServerPlayer> usedUp = new ArrayList<>();
         for (Player player : playersNear(level, pos)) {
@@ -150,6 +164,14 @@ public final class OneShotSpawners {
         freshData.multiplayerspawners$setPristine(pristine);
         level.setBlockEntity(fresh);
         fresh.setChanged();
+    }
+
+    private static void renewClient(Level level, BlockPos pos, BlockEntity old) {
+        BlockEntity fresh = old.getType().create(pos, old.getBlockState());
+        if (fresh != null) {
+            load(fresh, level, save(old, level));
+            level.setBlockEntity(fresh);
+        }
     }
 
     private static List<Player> playersNear(Level level, BlockPos pos) {
