@@ -22,6 +22,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.SpawnerBlock;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
@@ -124,6 +125,15 @@ public abstract class ServerPlayerGameModeMixin {
         }
     }
 
+    /**
+     * The break particles and sound of a block the server keeps, for the players around but the one
+     * who mined it: their own client shows them already (MultiPlayerGameModeMixin).
+     */
+    @Unique
+    private void multiplayerspawners$showBreakToOthers(Level level, BlockPos pos, BlockState state) {
+        level.levelEvent(this.player, Constants.BREAK_EFFECTS, pos, Block.getId(state));
+    }
+
     @Unique
     private void multiplayerspawners$dropSpawnerRewards(Level level, BlockPos pos, ServerPlayer player) {
         BlockState blockState = level.getBlockState(pos);
@@ -176,6 +186,7 @@ public abstract class ServerPlayerGameModeMixin {
 
         // A survival player mining a single-use spawner uses it up for themselves only.
         if (OneShotSpawners.onMined(world, pos, this.player)) {
+            multiplayerspawners$showBreakToOthers(world, pos, blockState);
             this.player.connection.send(new ClientboundBlockUpdatePacket(pos, blockState));
             cir.setReturnValue(false);
             return;
@@ -215,7 +226,10 @@ public abstract class ServerPlayerGameModeMixin {
                 if (multiplayerspawners$isDungeonPickaxe(this.player.getMainHandItem())) {
                     multiplayerspawners$dropEmptySpawner(world, pos, this.player);
                 }
+                // Breaking's own effects included: the players around see and hear it break.
                 multiplayerspawners$dropSpawnerRewards(world, pos, this.player);
+            } else {
+                multiplayerspawners$showBreakToOthers(world, pos, blockState);
             }
             boolean newForPlayer = multiplayerspawners$disable(world, pos, this.player);
 
