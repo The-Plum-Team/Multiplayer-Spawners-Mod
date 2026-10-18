@@ -28,14 +28,14 @@ The scenario, in the order it runs (each checkpoint fails the lane on its own):
   group-again       a later hit, on a spawner disabled for others or for the hitter, also disables it for the players near
   respawn           with a respawn time set, a disabled spawner becomes active again for its player
   torch             a torch Alice places next to a spawner is put out
-  player-placed     a spawner Alice places is treated as vanilla and breaks normally
+  player-placed     a spawner Alice places looks inactive while empty and active with a mob, and breaks normally
   break-tools       with spawner tools on, a tool of the breaks_spawners tag breaks a spawner in one hit
   stopped           the server stops cleanly and nothing logged an error from the mod
   evidence          every capture e2e/scenario-contract.json declares was taken by a passed check
 
 Screenshots of what each player sees are written next to the logs. The visual checks classify the
 spawner in the middle of the screen: the mod draws an active spawner with its own golden texture
-and a disabled one with the vanilla texture.
+and a disabled or empty one with the vanilla texture.
 
 The captures that the project site publishes are declared in the "evidence" section of
 e2e/scenario-contract.json (roles and steps). When every checkpoint passes, each lane writes them
@@ -1007,6 +1007,11 @@ class Lane:
         self.wait_for("Alice's spawner to be placed", lambda: self.block_is(PLACED, "minecraft:spawner"), 10)
         answer = self.run(f"data get block {x} {y} {z} MultiplayerSpawnersData.IsPlayerPlaced")
         self.check(re.search(r"\b(1b|true)\b", answer) is not None, f"the placed spawner is not marked player-placed: {answer}")
+        # An empty spawner looks inactive; it looks active once it has a mob, which it spawns for everyone.
+        self.expect_view("Alice", PLACED, (0, -2), "09-alice-placed-empty", active=False)
+        self.run(f'data merge block {x} {y} {z} {{SpawnData:{{entity:{{id:"minecraft:pig",Tags:["{SPAWNED_TAG}"]}}}},'
+                 f"Delay:600s,MinSpawnDelay:600s,MaxSpawnDelay:800s}}")
+        self.expect_view("Alice", PLACED, (0, -2), "09-alice-placed-with-mob", active=True)
         self.hit("Alice", PLACED, (0, -2))
         self.wait_for("the player-placed spawner to break like a vanilla one",
                       lambda: self.block_is(PLACED, "minecraft:air"), 10)

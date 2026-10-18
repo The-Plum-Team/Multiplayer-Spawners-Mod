@@ -2,6 +2,7 @@ package com.theplumteam.multiplayerspawners.client;
 
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.block.SpawnerStateProperties;
+import com.theplumteam.multiplayerspawners.mixin.BaseSpawnerAccessor;
 import com.theplumteam.multiplayerspawners.registration.ModBlocksItems;
 import com.theplumteam.multiplayerspawners.util.OneShotSpawners;
 import net.minecraft.client.Minecraft;
@@ -9,6 +10,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.SpawnData;
 import net.minecraft.world.level.block.SpawnerBlock;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -21,8 +23,9 @@ import java.util.Set;
 
 /**
  * What the server told this client about the spawners of the chunks it sees, and the look each
- * spawner gets from it: the mod's active look, or the vanilla one when it is disabled for the
- * current player or treated as vanilla. A chunk's entries are forgotten when the chunk unloads.
+ * spawner gets from it: the mod's active look while it spawns mobs for the current player, or the
+ * vanilla one when it is empty or disabled for them. A chunk's entries are forgotten when the chunk
+ * unloads.
  */
 public class ClientSpawnerData {
 
@@ -64,9 +67,30 @@ public class ClientSpawnerData {
         }
     }
 
-    /** Whether the spawner at {@code pos} must show the mod's active look for the current player. */
-    private static boolean shouldLookActive(BlockPos pos) {
-        return !vanillaTreatedSpawners.contains(pos) && !playerDisabledSpawners.getOrDefault(pos, false);
+    /**
+     * Whether the spawner at {@code pos} must show the mod's active look for the current player: it
+     * has a mob to spawn, and it is treated as vanilla (it spawns for everyone) or not disabled for
+     * them. A spawner whose data has not arrived yet, such as one the player is placing, is empty.
+     */
+    public static boolean shouldLookActive(Level level, BlockPos pos) {
+        return hasMob(level, pos) && (vanillaTreatedSpawners.contains(pos) || !playerDisabledSpawners.getOrDefault(pos, false));
+    }
+
+    private static boolean hasMob(Level level, BlockPos pos) {
+        if (!(level.getBlockEntity(pos) instanceof SpawnerBlockEntity spawnerBe)) return false;
+        SpawnData next = ((BaseSpawnerAccessor) spawnerBe.getSpawner()).multiplayerspawners$getNextSpawnData();
+        return next != null && next.getEntityToSpawn().contains("id");
+    }
+
+    /** The server sent the data of the spawner at {@code pos}: its mob may have changed. */
+    public static void onSpawnerDataLoaded(BlockPos pos) {
+        pos = pos.immutable();
+        if (applyLook(pos)) {
+            spawnersNeedingUpdate.remove(pos);
+        } else {
+            // Read with a chunk that is not in the world yet: applied when it is.
+            spawnersNeedingUpdate.add(pos);
+        }
     }
 
     /**
@@ -82,7 +106,7 @@ public class ClientSpawnerData {
         if (!(currentState.getBlock() instanceof SpawnerBlock) || !currentState.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
             return false;
         }
-        boolean activated = shouldLookActive(pos);
+        boolean activated = shouldLookActive(level, pos);
         if (currentState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED) != activated) {
             // Flag 3 updates the block and redraws it.
             level.setBlock(pos, currentState.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, activated), 3);
@@ -178,7 +202,9 @@ public class ClientSpawnerData {
     }
 
     public static void onChunkLoaded(int chunkX, int chunkZ) {
-        for (BlockPos pos : new ArrayList<>(playerDisabledSpawners.keySet())) {
+        Set<BlockPos> known = new HashSet<>(playerDisabledSpawners.keySet());
+        known.addAll(spawnersNeedingUpdate);
+        for (BlockPos pos : known) {
             if (inChunk(pos, chunkX, chunkZ) && applyLook(pos)) {
                 spawnersNeedingUpdate.remove(pos);
             }

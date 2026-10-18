@@ -38,8 +38,9 @@ public abstract class LevelChunkMixin {
     /**
      * ENFORCER: This injection acts as a firewall.
      * It intercepts incoming block state changes (from server packets or local logic).
-     * If the server tries to set a spawner to "Active" (Custom Texture), but our client data
-     * says it should be "Inactive" (Vanilla/Disabled), we FORCE the state to match our data.
+     * A spawner block set on this client (the server's update, or a spawner the player places,
+     * before the server answers) gets the look ClientSpawnerData gives it: inactive when it is
+     * empty or disabled for the current player.
      */
     @Inject(method = "setBlockState", at = @At("HEAD"), cancellable = true)
     //? if >=1.21.5 {
@@ -60,17 +61,7 @@ public abstract class LevelChunkMixin {
             if (state.getBlock() instanceof SpawnerBlock && state.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
 
                 boolean incomingActivated = state.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED);
-
-                // Determine what the state SHOULD be based on client data
-                boolean isVanillaTreated = ClientSpawnerData.isPlayerPlacedSpawner(pos);
-                boolean isDisabled = ClientSpawnerData.isSpawnerDisabledForCurrentPlayer(pos);
-
-                // LOGIC RECAP from ClientSpawnerData:
-                // 1. If treated as Vanilla -> We use Vanilla texture (Activated = FALSE)
-                // 2. If Disabled -> We use Vanilla texture (Activated = FALSE)
-                // 3. If Active AND Not Vanilla -> We use Custom texture (Activated = TRUE)
-
-                boolean shouldBeActivated = !isVanillaTreated && !isDisabled;
+                boolean shouldBeActivated = ClientSpawnerData.shouldLookActive(this.getLevel(), pos);
 
                 // If the incoming state disagrees with our required state, we intercept and fix it.
                 if (incomingActivated != shouldBeActivated) {
