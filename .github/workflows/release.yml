@@ -1,0 +1,225 @@
+name: Release
+
+# Pushing the tag v<mod_version> (from main) builds every jar of release/release-matrix.json,
+# stages them once and publishes those exact bytes to GitHub Releases, Modrinth and CurseForge.
+# A manual run is a rehearsal: it builds and stages the same bundle and never publishes.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      publish: ${{ steps.plan.outputs.publish }}
+      versions: ${{ steps.plan.outputs.versions }}
+      publications: ${{ steps.plan.outputs.publications }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Validate the release matrix
+        run: python3 -I scripts/release/matrix.py
+      - name: A release tag must point at a commit of main
+        if: github.ref_type == 'tag'
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - id: plan
+        name: Plan the jars and their publications
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: python3 -I scripts/release/publication.py plan --tag "$TAG" --github-output "$GITHUB_OUTPUT"
+
+  build:
+    name: Build Minecraft ${{ matrix.minecraft }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJSON(needs.plan.outputs.versions) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+            25
+      - name: Build the jars
+        env:
+          MINECRAFT: ${{ matrix.minecraft }}
+        run: >
+          ./gradlew "-PmpsTarget=$MINECRAFT" buildTarget --console=plain
+          -Porg.gradle.java.installations.auto-detect=false
+          -Porg.gradle.java.installations.fromEnv=JAVA_HOME_17_X64,JAVA_HOME_21_X64,JAVA_HOME_25_X64
+      - name: Start a dedicated server with each jar
+        env:
+          MINECRAFT: ${{ matrix.minecraft }}
+        run: >
+          python3 -I scripts/e2e/server_smoke.py --minecraft "$MINECRAFT"
+          --java "17=$JAVA_HOME_17_X64" --java "21=$JAVA_HOME_21_X64" --java "25=$JAVA_HOME_25_X64"
+      - name: Upload the jars
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-jars-${{ matrix.minecraft }}
+          path: "*/versions/${{ matrix.minecraft }}/build/libs/MultiplayerSpawners-*-${{ matrix.minecraft }}-*[0-9].jar"
+          retention-days: 7
+          if-no-files-found: error
+
+  stage:
+    name: Stage the release bundle
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Download every version's jars
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: release-jars-*
+          path: built
+      - name: Check the jars and write the bundle
+        run: python3 -I scripts/release/publication.py stage --built built --out dist
+      - name: Upload the release bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-bundle
+          path: dist
+          retention-days: 30
+          if-no-files-found: error
+
+  github-release:
+    name: Create the GitHub release
+    needs: [plan, stage]
+    if: needs.plan.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download the release bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-bundle
+          path: dist
+      - name: Publish the jars and checksums on the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: >
+          gh release create "$TAG" dist/*.jar dist/SHA256SUMS
+          --repo "$GITHUB_REPOSITORY" --verify-tag --title "Multiplayer Spawners $VERSION"
+          --notes-file dist/CHANGELOG.md
+
+  modrinth:
+    name: Modrinth ${{ matrix.id }}
+    needs: [plan, stage]
+    if: needs.plan.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    permissions: {}
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.plan.outputs.publications) }}
+    # No checkout: only the staged bytes and the pinned publishing action see the token.
+    steps:
+      - name: Download the release bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-bundle
+          path: dist
+      - name: Publish to Modrinth
+        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3.1
+        with:
+          modrinth-id: ${{ matrix.modrinth_id }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          files: ${{ matrix.file }}
+          name: ${{ matrix.name }}
+          version: ${{ matrix.version_number }}
+          version-type: release
+          changelog-file: dist/CHANGELOG.md
+          loaders: ${{ matrix.loader }}
+          game-versions: ${{ matrix.game_versions }}
+          game-version-filter: none
+          dependencies: ${{ matrix.dependencies }}
+          java: ${{ matrix.java }}
+          # Modrinth refuses a file it already has, so retrying is safe.
+          retry-attempts: 3
+          retry-delay: 10000
+          fail-mode: fail
+
+  curseforge:
+    name: CurseForge ${{ matrix.id }}
+    needs: [plan, stage]
+    if: needs.plan.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    permissions: {}
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.plan.outputs.publications) }}
+    # No checkout: only the staged bytes and the pinned publishing action see the token.
+    steps:
+      - name: Download the release bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-bundle
+          path: dist
+      - name: Publish to CurseForge
+        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075 # v3.3.1
+        with:
+          curseforge-id: ${{ matrix.curseforge_id }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: ${{ matrix.file }}
+          name: ${{ matrix.name }}
+          version: ${{ matrix.version_number }}
+          version-type: release
+          changelog-file: dist/CHANGELOG.md
+          loaders: ${{ matrix.loader }}
+          game-versions: ${{ matrix.game_versions }}
+          game-version-filter: none
+          dependencies: ${{ matrix.dependencies }}
+          java: ${{ matrix.java }}
+          # CurseForge accepts the same file twice: no retry inside the action. Re-run only the
+          # failed jobs, after checking on CurseForge that their file is not there.
+          retry-attempts: 1
+          retry-delay: 10000
+          fail-mode: fail
