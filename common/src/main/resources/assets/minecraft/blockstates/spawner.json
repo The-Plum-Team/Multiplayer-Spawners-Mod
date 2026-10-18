@@ -3,8 +3,11 @@
     "multiplayer_activated=false": {
       "model": "minecraft:block/spawner"
     },
-    "multiplayer_activated=true": {
+    "multiplayer_activated=true,multiplayer_placed=false": {
       "model": "multiplayerspawners:block/spawner_activated"
+    },
+    "multiplayer_activated=true,multiplayer_placed=true": {
+      "model": "multiplayerspawners:block/spawner_placed"
     }
   }
 }

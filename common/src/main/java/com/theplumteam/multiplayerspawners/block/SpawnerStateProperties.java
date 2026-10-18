@@ -10,4 +10,7 @@ public class SpawnerStateProperties {
 
     public static final BooleanProperty MULTIPLAYER_ACTIVATED = BooleanProperty.create("multiplayer_activated");
 
+    /** With {@link #MULTIPLAYER_ACTIVATED}: an active spawner that is treated as vanilla (player-placed). */
+    public static final BooleanProperty MULTIPLAYER_PLACED = BooleanProperty.create("multiplayer_placed");
+
 }

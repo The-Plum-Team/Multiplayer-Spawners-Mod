@@ -1,0 +1,8 @@
+{
+  "parent": "multiplayerspawners:block/spawner_activated",
+  "textures": {
+    "0": "multiplayerspawners:block/spawner_placed",
+    "1": "multiplayerspawners:block/spawner_placed_e",
+    "particle": "multiplayerspawners:block/spawner_placed"
+  }
+}

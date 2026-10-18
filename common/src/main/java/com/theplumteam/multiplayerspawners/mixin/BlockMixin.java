@@ -28,8 +28,8 @@ public abstract class BlockMixin {
     private void multiplayerspawners$addSpawnerProperties(StateDefinition.Builder<Block, BlockState> builder, CallbackInfo ci) {
         Block thisBlock = (Block) (Object) this;
         if (thisBlock instanceof SpawnerBlock) {
-            builder.add(SpawnerStateProperties.MULTIPLAYER_ACTIVATED);
-            Constants.debug("BLOCK_MIXIN: Added MULTIPLAYER_ACTIVATED property to spawner block");
+            builder.add(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, SpawnerStateProperties.MULTIPLAYER_PLACED);
+            Constants.debug("BLOCK_MIXIN: Added the look properties to spawner block");
         }
     }
 
@@ -49,7 +49,8 @@ public abstract class BlockMixin {
                 // Only set the property if it exists in the current state
                 if (currentDefault.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
                     // Default to active - the client-side renderer will handle the actual display
-                    this.registerDefaultState(currentDefault.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, true));
+                    this.registerDefaultState(currentDefault.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, true)
+                            .setValue(SpawnerStateProperties.MULTIPLAYER_PLACED, false));
                     Constants.debug("BLOCK_MIXIN: Set default state for spawner block to MULTIPLAYER_ACTIVATED=true");
                 } else {
                     Constants.LOG.warn("BLOCK_MIXIN: Spawner block {} does not have MULTIPLAYER_ACTIVATED property, skipping default state setup", thisBlock.getClass().getSimpleName());

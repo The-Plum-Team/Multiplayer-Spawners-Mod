@@ -40,7 +40,7 @@ public abstract class LevelChunkMixin {
      * It intercepts incoming block state changes (from server packets or local logic).
      * A spawner block set on this client (the server's update, or a spawner the player places,
      * before the server answers) gets the look ClientSpawnerData gives it: inactive when it is
-     * empty or disabled for the current player.
+     * empty or disabled for the current player, dark steel when it is treated as vanilla.
      */
     @Inject(method = "setBlockState", at = @At("HEAD"), cancellable = true)
     //? if >=1.21.5 {
@@ -60,21 +60,10 @@ public abstract class LevelChunkMixin {
             // Check if we are dealing with a spawner block that has our property
             if (state.getBlock() instanceof SpawnerBlock && state.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
 
-                boolean incomingActivated = state.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED);
-                boolean shouldBeActivated = ClientSpawnerData.shouldLookActive(this.getLevel(), pos);
-
-                // If the incoming state disagrees with our required state, we intercept and fix it.
-                if (incomingActivated != shouldBeActivated) {
-
-                    // Stop the original operation
-                    cir.cancel();
-
-                    // Apply the CORRECT state immediately
-                    BlockState fixedState = state.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, shouldBeActivated);
-
-                    // Call the method again with the fixed state.
-                    // Since fixedState matches the condition now, this recursive call will skip this 'if' block and proceed normally.
-                    cir.setReturnValue(this.setBlockState(pos, fixedState, flags));
+                BlockState lookState = ClientSpawnerData.lookFor(this.getLevel(), pos, state);
+                if (lookState != state) {
+                    // Set the spawner with its look instead; that call passes through here unchanged.
+                    cir.setReturnValue(this.setBlockState(pos, lookState, flags));
                 }
             }
         }

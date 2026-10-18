@@ -10,7 +10,10 @@ stays active for everyone else, so every player gets to clear the same dungeon.
 - **Torches:** a torch placed within 7 blocks of a spawner is put out after a delay.
 - **Respawn:** optionally, a disabled spawner becomes active again for its player after a set
   number of minutes (off by default), like Lootr's loot refresh.
-- **Player-placed spawners** can behave like vanilla ones.
+- **Player-placed spawners** can behave like vanilla ones: they spawn for everyone, break normally
+  and put out no torches, and show a dark steel look instead of the golden one.
+- **Looks:** a spawner shows the mod's golden look while it spawns for you, and the vanilla look
+  when it is empty or disabled for you.
 
 **Works with** [Apothic Spawners](https://modrinth.com/mod/apothic-spawners) (its spawners are
 disabled per player like vanilla ones, within their own activation range) and

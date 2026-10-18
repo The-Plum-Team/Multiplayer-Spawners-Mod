@@ -106,12 +106,22 @@ public class ClientSpawnerData {
         if (!(currentState.getBlock() instanceof SpawnerBlock) || !currentState.hasProperty(SpawnerStateProperties.MULTIPLAYER_ACTIVATED)) {
             return false;
         }
-        boolean activated = shouldLookActive(level, pos);
-        if (currentState.getValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED) != activated) {
+        BlockState lookState = lookFor(level, pos, currentState);
+        if (lookState != currentState) {
             // Flag 3 updates the block and redraws it.
-            level.setBlock(pos, currentState.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, activated), 3);
+            level.setBlock(pos, lookState, 3);
         }
         return true;
+    }
+
+    /**
+     * {@code state}, a spawner at {@code pos}, with the look it must have for the current player:
+     * the mod's golden look while it spawns for them, a dark steel one when it spawns for everyone
+     * because it is treated as vanilla, and the vanilla look when it is empty or disabled for them.
+     */
+    public static BlockState lookFor(Level level, BlockPos pos, BlockState state) {
+        return state.setValue(SpawnerStateProperties.MULTIPLAYER_ACTIVATED, shouldLookActive(level, pos))
+                .setValue(SpawnerStateProperties.MULTIPLAYER_PLACED, vanillaTreatedSpawners.contains(pos));
     }
 
     /**
