@@ -1,6 +1,7 @@
 package com.theplumteam.multiplayerspawners.mixin;
 
 import com.google.common.collect.Sets;
+import com.theplumteam.multiplayerspawners.client.ClientSpawnerData;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
 import com.theplumteam.multiplayerspawners.util.SpawnerDataAccessor;
@@ -83,7 +84,9 @@ public class SpawnerBlockEntityMixin implements SpawnerDataAccessor {
      * Data loaded into a spawner that is already in a server world (a command such as /setblock or
      * /data with its data, a structure or schematic pasted over it) reaches the players who see it:
      * the spawner's own appearance was announced before its data was loaded. A spawner read from
-     * disk with its chunk has no world yet here; the chunk's state is sent as the chunk is.
+     * disk with its chunk has no world yet here; the chunk's state is sent as the chunk is. On a
+     * client, the data the server sent (with a chunk, or when a spawn egg or a command changed the
+     * mob) may change the spawner's look: an empty spawner looks inactive.
      */
     @Unique
     private void multiplayerspawners$syncLoaded(Level level, BlockPos pos) {
@@ -91,6 +94,8 @@ public class SpawnerBlockEntityMixin implements SpawnerDataAccessor {
             boolean treatedAsVanilla = this.multiplayerspawners$isPlayerPlaced() && ModConfig.SERVER.treatPlacedSpawnersAsVanilla.get();
             NetworkHandler.getInstance().sendSpawnerStateToTracking(level, pos.immutable(),
                     Set.copyOf(this.multiplayerspawners$disabledPlayers), treatedAsVanilla);
+        } else if (level != null && level.isClientSide() && pos != null) {
+            ClientSpawnerData.onSpawnerDataLoaded(pos);
         }
     }
 

@@ -152,3 +152,22 @@ environment exists, then `shadow`, then `shared-build-and-e2e`).
 - `scripts/ci/tests` holds the adapter's tests; the `policy` hook runs them with the matrix
   validator.
 
+
+## Releasing
+
+`.github/workflows/release.yml` publishes every jar of the release matrix to GitHub Releases,
+Modrinth (`ltl1ms4K`) and CurseForge (`1333296`).
+
+1. Set `project.mod_version` in `release/release-matrix.json` and write
+   `release/changelogs/<mod_version>.md` (the marketplace changelog), then merge them to `main`.
+2. Push the tag `v<mod_version>` on that commit of `main`. The workflow checks the tag against the
+   matrix and main, builds and smoke-tests every version, stages the jars once
+   (`scripts/release/publication.py stage`: published file names, `SHA256SUMS`, changelog) and
+   publishes those bytes. The publishing jobs run in the `release` environment, which holds
+   `MODRINTH_TOKEN` and `CURSEFORGE_TOKEN` and deploys only from `v*` tags; they check out
+   nothing.
+3. If a publishing job fails, re-run only the failed jobs. Modrinth refuses a file it already has;
+   CurseForge does not, so check there first that the file is missing.
+
+A manual run of the workflow is a rehearsal: it builds and stages the bundle (artifact
+`release-bundle`) and publishes nothing.

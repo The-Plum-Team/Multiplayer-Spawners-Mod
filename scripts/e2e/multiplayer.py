@@ -28,14 +28,14 @@ The scenario, in the order it runs (each checkpoint fails the lane on its own):
   group-again       a later hit, on a spawner disabled for others or for the hitter, also disables it for the players near
   respawn           with a respawn time set, a disabled spawner becomes active again for its player
   torch             a torch Alice places next to a spawner is put out
-  player-placed     a spawner Alice places is treated as vanilla and breaks normally
+  player-placed     a spawner Alice places looks inactive while empty and steel-grey with a mob, and breaks normally
   break-tools       with spawner tools on, a tool of the breaks_spawners tag breaks a spawner in one hit
   stopped           the server stops cleanly and nothing logged an error from the mod
   evidence          every capture e2e/scenario-contract.json declares was taken by a passed check
 
 Screenshots of what each player sees are written next to the logs. The visual checks classify the
 spawner in the middle of the screen: the mod draws an active spawner with its own golden texture
-and a disabled one with the vanilla texture.
+and a disabled or empty one with the vanilla texture; an active player-placed one is dark steel.
 
 The captures that the project site publishes are declared in the "evidence" section of
 e2e/scenario-contract.json (roles and steps). When every checkpoint passes, each lane writes them
@@ -472,7 +472,20 @@ def warm_fraction(image) -> float:
     return warm / len(pixels)
 
 
+def steel_fraction(image) -> float:
+    """The share of steel-grey pixels in the middle of the screen: the look of an active spawner that is
+    treated as vanilla (player-placed). Nothing else in the scene is a neutral light grey; the golden
+    texture's palest pixels are only slightly yellowish (see STEEL_MIN)."""
+
+    crop = image.crop((WIDTH // 2 - 80, HEIGHT // 2 - 70, WIDTH // 2 + 80, HEIGHT // 2 + 90))
+    pixels = crop.get_flattened_data()
+    steel = sum(1 for r, g, b in pixels if min(r, g, b) > 110 and max(r, g, b) - min(r, g, b) < 20)
+    return steel / len(pixels)
+
+
 ACTIVE_MIN, DISABLED_MAX = 0.03, 0.01
+# The golden texture's palest pixels make about 3% grey; the steel one over twice that.
+STEEL_MIN = 0.08
 
 
 def link_position(image) -> tuple[int, int] | None:
@@ -646,12 +659,27 @@ class Lane:
                 self.look(other, (block[0] + 0.5, block[1] + 0.5, block[2] + 0.5),
                           (block[0] + 0.5 + dx, FEET, block[2] + 0.5 + dz))
 
-    def view(self, player: str, block: tuple[int, int, int], offset: tuple[float, float], name: str) -> float:
+    def view(self, player: str, block: tuple[int, int, int], offset: tuple[float, float], name: str,
+             metric=warm_fraction) -> float:
         self.clear_view(player, block)
         self.look_at_block(player, block, offset)
         self.clear_spawned()
         time.sleep(2.5)
-        return warm_fraction(self.clients[player].screenshot(name))
+        return metric(self.clients[player].screenshot(name))
+
+    def expect_steel(self, player: str, block: tuple[int, int, int], offset: tuple[float, float], name: str) -> None:
+        """`player` sees the spawner at `block` with the steel-grey look of an active vanilla-treated spawner.
+        Its golden share is not checked: an active spawner's flames are golden whatever its texture."""
+
+        deadline = time.monotonic() + 15
+        while True:
+            steel = self.view(player, block, offset, name, steel_fraction)
+            if steel >= STEEL_MIN:
+                self.notes.append(f"{name}: grey share {steel:.3f}")
+                return
+            if time.monotonic() > deadline:
+                raise ScenarioFailure(f"{player} should see the spawner at {block} steel-grey; grey share "
+                                      f"{steel:.3f} (screenshots/{name}.png)")
 
     def capture(self, player: str, step: str, name: str, message: str) -> None:
         """Record screenshots/<name>.png as the contract capture <player>/<step>, with the message of
@@ -1007,6 +1035,11 @@ class Lane:
         self.wait_for("Alice's spawner to be placed", lambda: self.block_is(PLACED, "minecraft:spawner"), 10)
         answer = self.run(f"data get block {x} {y} {z} MultiplayerSpawnersData.IsPlayerPlaced")
         self.check(re.search(r"\b(1b|true)\b", answer) is not None, f"the placed spawner is not marked player-placed: {answer}")
+        # An empty spawner looks inactive; once it has a mob, which it spawns for everyone, it looks steel-grey.
+        self.expect_view("Alice", PLACED, (0, -2), "09-alice-placed-empty", active=False)
+        self.run(f'data merge block {x} {y} {z} {{SpawnData:{{entity:{{id:"minecraft:pig",Tags:["{SPAWNED_TAG}"]}}}},'
+                 f"Delay:600s,MinSpawnDelay:600s,MaxSpawnDelay:800s}}")
+        self.expect_steel("Alice", PLACED, (0, -2), "09-alice-placed-with-mob")
         self.hit("Alice", PLACED, (0, -2))
         self.wait_for("the player-placed spawner to break like a vanilla one",
                       lambda: self.block_is(PLACED, "minecraft:air"), 10)
