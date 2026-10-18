@@ -19,7 +19,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * remove the block at once and get it back from the server a moment later, so it flickered (and
  * lost its block entity's data until the next update). The break request still goes to the server.
  * The player still sees and hears the block break, as vanilla's prediction would show it; the server
- * shows it to the players around.
+ * shows it to the players around. As after any block vanilla breaks by mining, the next hit waits
+ * 5 ticks: the block is still there, so a held button (or a click that lasts into the next tick)
+ * would otherwise hit it again every tick.
  */
 @Mixin(MultiPlayerGameMode.class)
 public abstract class MultiPlayerGameModeMixin {
@@ -28,12 +30,16 @@ public abstract class MultiPlayerGameModeMixin {
     @Final
     private Minecraft minecraft;
 
+    @Shadow
+    private int destroyDelay;
+
     @Inject(method = "destroyBlock", at = @At("HEAD"), cancellable = true)
     private void multiplayerspawners$keepBlockTheServerKeeps(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
         if (this.minecraft.level != null && this.minecraft.player != null
                 && ClientSpawnerData.serverKeepsWhenMined(this.minecraft.level, pos, this.minecraft.player)) {
             this.minecraft.level.levelEvent(this.minecraft.player, Constants.BREAK_EFFECTS, pos,
                     Block.getId(this.minecraft.level.getBlockState(pos)));
+            this.destroyDelay = 5;
             cir.setReturnValue(false);
         }
     }
