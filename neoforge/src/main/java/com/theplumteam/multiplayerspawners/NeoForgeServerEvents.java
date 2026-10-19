@@ -4,15 +4,23 @@ import com.theplumteam.multiplayerspawners.event.CommandHandler;
 import com.theplumteam.multiplayerspawners.event.PlayerEventHandler;
 import com.theplumteam.multiplayerspawners.event.ServerLifecycleHandler;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
+import com.theplumteam.multiplayerspawners.util.SpawnerBreaking;
 import com.theplumteam.multiplayerspawners.util.TorchTracker;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+//? if >=26.1.2 {
+import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
+//?} else {
+/*import net.neoforged.neoforge.event.level.BlockEvent;
+*///?}
 import net.neoforged.neoforge.event.level.ChunkEvent;
 import net.neoforged.neoforge.event.level.ChunkWatchEvent;
 import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
@@ -39,6 +47,25 @@ public class NeoForgeServerEvents {
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
             PlayerEventHandler.onPlayerRespawn(serverPlayer);
+        }
+    }
+
+    /**
+     * A block broken without the player's own mining, by another mod (an area tool's extra blocks, a
+     * spell, a machine): a spawner gets what a hit gives it. After the other listeners, so that a
+     * break a protection mod refused disables nothing.
+     */
+    @SubscribeEvent(priority = EventPriority.LOW)
+    //? if >=26.1.2 {
+    public static void onBlockBreak(BreakBlockEvent event) {
+    //?} else {
+    /*public static void onBlockBreak(BlockEvent.BreakEvent event) {
+    *///?}
+        if (event.getLevel() instanceof Level level && SpawnerBreaking.onModBreak(level, event.getPos(), event.getPlayer())) {
+            event.setCanceled(true);
+            //? if >=26.1.2 {
+            event.setNotifyClient(true);
+            //?}
         }
     }
 

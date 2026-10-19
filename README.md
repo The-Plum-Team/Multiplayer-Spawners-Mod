@@ -20,6 +20,11 @@ disabled per player like vanilla ones, within their own activation range) and
 [Ageing Spawners](https://modrinth.com/mod/ageing-spawners): a spawner that runs out is disabled for
 the players who used it up and stays for everyone else, instead of disappearing for the whole server.
 
+**Mods that break blocks for a player** on Forge and NeoForge, such as the 3x3 hammers of
+[Tinkers' Construct](https://modrinth.com/mod/tinkers-construct) or the Break spell of
+[Ars Nouveau](https://modrinth.com/mod/ars-nouveau), disable a spawner for that player like a hit,
+instead of breaking it. A machine that breaks blocks for nobody leaves spawners as they are.
+
 **Single-use spawners** — [Quark](https://modrinth.com/mod/quark)'s monster box and
 [Apotheosis](https://modrinth.com/mod/apotheosis)' boss spawner — spawn their mobs or boss once and
 then remove themselves. They now stay: used up only for the players near them when they trigger

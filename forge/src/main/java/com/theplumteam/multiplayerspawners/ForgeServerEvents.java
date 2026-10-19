@@ -4,14 +4,18 @@ import com.theplumteam.multiplayerspawners.event.CommandHandler;
 import com.theplumteam.multiplayerspawners.event.PlayerEventHandler;
 import com.theplumteam.multiplayerspawners.event.ServerLifecycleHandler;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
+import com.theplumteam.multiplayerspawners.util.SpawnerBreaking;
 import com.theplumteam.multiplayerspawners.util.TorchTracker;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.TickTask;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.ChunkEvent;
 import net.minecraftforge.event.level.ChunkWatchEvent;
 import net.minecraftforge.event.server.ServerAboutToStartEvent;
@@ -38,6 +42,18 @@ public class ForgeServerEvents {
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
             PlayerEventHandler.onPlayerRespawn(serverPlayer);
+        }
+    }
+
+    /**
+     * A block broken without the player's own mining, by another mod (an area tool's extra blocks, a
+     * spell, a machine): a spawner gets what a hit gives it. After the other listeners, so that a
+     * break a protection mod refused disables nothing.
+     */
+    @SubscribeEvent(priority = EventPriority.LOW)
+    public static void onBlockBreak(BlockEvent.BreakEvent event) {
+        if (event.getLevel() instanceof Level level && SpawnerBreaking.onModBreak(level, event.getPos(), event.getPlayer())) {
+            event.setCanceled(true);
         }
     }
 
