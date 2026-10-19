@@ -142,7 +142,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Verify the pinned kit and install the imaging dependency
-        uses: The-Plum-Team/mod-base/actions/setup@acb01ca4f625a5d27f1c1a709a416d9725bef64f # v1.7.0
+        uses: The-Plum-Team/mod-base/actions/setup@d938d8bc404aec629e925ba57d8a4f4a8ada9f07 # v1.7.1
       - name: Download the captures of this version
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -154,7 +154,7 @@ jobs:
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
           printf 'tree=%s\n' "$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
       - name: Prepare and hand off public evidence
-        uses: The-Plum-Team/mod-base/actions/prepare-evidence@acb01ca4f625a5d27f1c1a709a416d9725bef64f # v1.7.0
+        uses: The-Plum-Team/mod-base/actions/prepare-evidence@d938d8bc404aec629e925ba57d8a4f4a8ada9f07 # v1.7.1
         with:
           e2e-root: ${{ runner.temp }}/evidence
           key: mc${{ matrix.minecraft }}
@@ -176,7 +176,7 @@ jobs:
       actions: write
     steps:
       - name: Dispatch the separately locked Pages publication
-        uses: The-Plum-Team/mod-base/actions/notify-pages@acb01ca4f625a5d27f1c1a709a416d9725bef64f # v1.7.0
+        uses: The-Plum-Team/mod-base/actions/notify-pages@d938d8bc404aec629e925ba57d8a4f4a8ada9f07 # v1.7.1
         with:
           operation: deploy
           run-id: ${{ github.run_id }}
