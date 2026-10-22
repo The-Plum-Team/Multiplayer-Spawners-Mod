@@ -43,6 +43,7 @@ public final class ModConfig {
         public final IntValue spawnerRespawnMinutes;
         public final BooleanValue showNotices;
         public final IntValue oneShotSpawnerRange;
+        public final BooleanValue spawnEggsChangeSpawners;
 
         private ServerConfig() {
             push("general", "MultiplayerSpawners Configuration");
@@ -67,6 +68,11 @@ public final class ModConfig {
                     "Single-use spawners (block tag multiplayerspawners:one_shot_spawners, such as Quark's monster box",
                     "and Apotheosis' boss spawner) are used up for the players within this many blocks when they",
                     "trigger, and do not trigger again while only such players are this near.");
+            spawnEggsChangeSpawners = define("spawnEggsChangeSpawners", true,
+                    "If true, any player can change a spawner's mob with a spawn egg, as in vanilla. A spawner is one",
+                    "block for the whole server, so the new mob spawns for every player.",
+                    "If false, only Creative mode players can.",
+                    "Use /multiplayerspawners toggle_spawn_eggs to toggle this setting in-game.");
 
             push("breaking", "Breaking Mechanics");
             requiredBreakAttempts = defineInRange("requiredBreakAttempts", 2, 1, 10,

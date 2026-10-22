@@ -52,7 +52,7 @@ On Fabric the mod needs Fabric API.
 
 | File | Settings |
 |---|---|
-| `<world>/serverconfig/multiplayerspawners-server.toml` | group disabling and its radius, respawn time, chat notices, single-use spawner range, torch delay, break attempts, break message, breaking with spawner tools, vanilla player-placed spawners |
+| `<world>/serverconfig/multiplayerspawners-server.toml` | group disabling and its radius, respawn time, chat notices, single-use spawner range, torch delay, break attempts, break message, breaking with spawner tools, spawn eggs on spawners, vanilla player-placed spawners |
 | `config/multiplayerspawners-client.toml` | debug logging |
 
 Operators (level 2) can change the server settings in game; the change is saved to the file:
@@ -61,6 +61,7 @@ Operators (level 2) can change the server settings in game; the change is saved 
 /multiplayerspawners toggle_placed_vanilla
 /multiplayerspawners toggle_break_message
 /multiplayerspawners toggle_break_tools
+/multiplayerspawners toggle_spawn_eggs
 /multiplayerspawners toggle_notices
 /multiplayerspawners set_break_attempts <1-10>
 /multiplayerspawners respawn [<minutes>]
@@ -74,6 +75,10 @@ Operators (level 2) can change the server settings in game; the change is saved 
 breaks a spawner like vanilla, for everyone, and its mod decides what drops: add your mods'
 spawner-moving tools to that tag with a datapack. Both together make spawners breakable only with
 those tools.
+
+**Spawn eggs:** a spawner is one block for the whole server, so changing its mob with a spawn egg
+changes it for every player. With `spawnEggsChangeSpawners = false` only Creative players can do
+it.
 
 ## Building
 

@@ -174,6 +174,24 @@ public class CommandHandler {
                             return 1;
                         })
                 )
+                .then(Commands.literal("toggle_spawn_eggs")
+                        .requires(CommandHandler::isGamemaster)
+                        .executes(context -> {
+                            boolean newValue = !ModConfig.SERVER.spawnEggsChangeSpawners.get();
+                            ModConfig.SERVER.spawnEggsChangeSpawners.set(newValue);
+
+                            // EXPLICITLY SAVE TO DISK
+                            saveServerConfig();
+
+                            context.getSource().sendSuccess(() -> Component.literal("Changing a spawner's mob with a spawn egg is now " + (newValue ? "ALLOWED for everyone" : "CREATIVE ONLY"))
+                                    .withStyle(newValue ? ChatFormatting.GREEN : ChatFormatting.GOLD), true);
+                            if (!newValue) {
+                                context.getSource().sendSuccess(() -> Component.literal("Players who are not in Creative can no longer change the mob of a spawner with a spawn egg.")
+                                        .withStyle(ChatFormatting.GRAY), false);
+                            }
+                            return 1;
+                        })
+                )
                 .then(Commands.literal("allow_break")
                         .then(Commands.argument("x", com.mojang.brigadier.arguments.IntegerArgumentType.integer())
                                 .then(Commands.argument("y", com.mojang.brigadier.arguments.IntegerArgumentType.integer())
