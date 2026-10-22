@@ -12,6 +12,7 @@
     "LevelChunkMixin",
     "LevelMixin",
     "ServerPlayerGameModeMixin",
+    "SpawnEggItemMixin",
     "SpawnerBlockEntityMixin",
     "SpawnerTickMixin"
   ],

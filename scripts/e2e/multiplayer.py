@@ -30,6 +30,7 @@ The scenario, in the order it runs (each checkpoint fails the lane on its own):
   torch             a torch Alice places next to a spawner is put out
   player-placed     a spawner Alice places looks inactive while empty and steel-grey with a mob, and breaks normally
   break-tools       with spawner tools on, a tool of the breaks_spawners tag breaks a spawner in one hit
+  spawn-eggs        with spawn eggs limited to Creative, Alice's egg leaves a spawner's mob as it was until she is in Creative
   stopped           the server stops cleanly and nothing logged an error from the mod
   evidence          every capture e2e/scenario-contract.json declares was taken by a passed check
 
@@ -87,7 +88,8 @@ RCON_PASSWORD = "multiplayerspawners-e2e"
 
 CHECKPOINTS = ("joined", "initial-view", "spawns", "group-disable", "per-player-view", "suppressed",
                "active-for-others", "break-message", "joined-disable", "persistence", "join-sync",
-               "break-link", "replaced", "quiet", "group-again", "respawn", "torch", "player-placed", "break-tools", "stopped",
+               "break-link", "replaced", "quiet", "group-again", "respawn", "torch", "player-placed", "break-tools", "spawn-eggs",
+               "stopped",
                "evidence")
 
 # The world is a flat world: the ground is the grass block layer at y=-61, players stand at y=-60.
@@ -98,6 +100,7 @@ S2 = (40, FEET, 10)      # Carol's own spawner, far from the others
 PLACED = (-30, FEET, 10)  # where Alice places a spawner herself
 TORCH = (42, FEET, 12)   # within the 7 blocks of S2 that put a torch out
 TOOLED = (-30, FEET, 30)  # the spawner Alice breaks with a spawner tool
+EGGED = (-30, FEET, 50)  # the spawner Alice uses spawn eggs on
 SPAWNER_TOOL = "minecraft:golden_pickaxe"  # added to multiplayerspawners:breaks_spawners by the test datapack
 SPAWNED_TAG = "mps_e2e"
 CONTRACT = ROOT / "e2e" / "scenario-contract.json"
@@ -1060,6 +1063,55 @@ class Lane:
                       lambda: self.block_is(TOOLED, "minecraft:air"), 10)
         answer = self.run(f"{MOD_ID} toggle_break_tools")
         self.check("DISABLED" in answer, f"turning spawner tools off answered {answer!r}")
+
+    def spawner_mob(self, block: tuple[int, int, int]) -> str:
+        x, y, z = block
+        answer = self.run(f"data get block {x} {y} {z} SpawnData.entity.id")
+        match = re.search(r'"([a-z0-9_.:-]+)"', answer)
+        if match is None:
+            raise ScenarioFailure(f"could not read the mob of the spawner at {block}: {answer}")
+        return match.group(1)
+
+    def use_egg(self, player: str, egg: str, block: tuple[int, int, int], name: str) -> None:
+        self.hold(player, egg)
+        self.look_at_block(player, block, (0, -2))
+        time.sleep(1.5)
+        self.clients[player].right_click()
+        time.sleep(1.5)
+        self.clients[player].screenshot(name)
+
+    def step_spawn_eggs(self) -> None:
+        answer = self.run(f"{MOD_ID} toggle_spawn_eggs")
+        self.check("CREATIVE ONLY" in answer, f"limiting spawn eggs to Creative answered {answer!r}")
+        self.place_spawner(EGGED)
+        x, y, z = EGGED
+        self.run(f"data merge block {x} {y} {z} {{Delay:600s}}")
+        self.clear_spawned()
+        self.run("kill @e[type=minecraft:cow]")
+
+        self.use_egg("Alice", "minecraft:cow_spawn_egg", EGGED, "10-alice-egg-refused")
+        mob = self.spawner_mob(EGGED)
+        self.check(mob == "minecraft:pig", f"Alice's spawn egg in Survival changed the spawner to {mob}")
+        kept = self.run("clear Alice minecraft:cow_spawn_egg 0")
+        self.check(re.search(r"\b1\b", kept) is not None, f"Alice's refused spawn egg was used up: {kept}")
+        cows = self.run("execute if entity @e[type=minecraft:cow]")
+        self.check(cows.startswith("Test failed"), f"Alice's refused spawn egg spawned a cow: {cows}")
+
+        self.run("gamemode creative Alice")
+        try:
+            self.use_egg("Alice", "minecraft:cow_spawn_egg", EGGED, "10-alice-egg-creative")
+            self.wait_for("Alice's spawn egg in Creative to change the spawner",
+                          lambda: self.spawner_mob(EGGED) == "minecraft:cow", 10)
+        finally:
+            self.run("gamemode survival Alice")
+
+        answer = self.run(f"{MOD_ID} toggle_spawn_eggs")
+        self.check("ALLOWED" in answer, f"allowing spawn eggs again answered {answer!r}")
+        self.use_egg("Alice", "minecraft:sheep_spawn_egg", EGGED, "10-alice-egg-allowed")
+        self.wait_for("Alice's spawn egg in Survival to change the spawner once eggs are allowed again",
+                      lambda: self.spawner_mob(EGGED) == "minecraft:sheep", 10)
+        self.run(f"setblock {x} {y} {z} minecraft:air")
+        self.run("kill @e[type=minecraft:cow]")
 
     def step_stopped(self) -> None:
         for client in self.clients.values():

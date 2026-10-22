@@ -5,7 +5,7 @@
   "project": {
     "mod_id": "multiplayerspawners",
     "name": "MultiplayerSpawners",
-    "mod_version": "2.0.0",
+    "mod_version": "2.0.1",
     "description": "Per-player spawners for multiplayer: each player disables a spawner only for themselves, so everyone gets to clear the same dungeon.",
     "authors": [
       "ThePlumTeam"
