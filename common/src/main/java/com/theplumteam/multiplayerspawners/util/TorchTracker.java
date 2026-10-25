@@ -37,7 +37,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class TorchTracker {
     private static final Map<ResourceKey<Level>, Map<BlockPos, Long>> trackedTorches = new ConcurrentHashMap<>();
     private static final Queue<ScheduledTask> scheduledTasks = new ConcurrentLinkedQueue<>();
-    private static final int SPAWNER_DISTANCE = 7; // The radius within which spawners will extinguish torches
+    public static final int SPAWNER_DISTANCE = 7; // The radius within which spawners will extinguish torches
     private static final int SHOT_DELAY_TICKS = 40; // 2 seconds additional delay before shooting
     private static final int PARTICLE_BEAM_DURATION_TICKS = 4; // 0.2 seconds - much faster!
     private static final double PARTICLE_STEP_SIZE = 0.15; // Larger steps for faster movement

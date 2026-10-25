@@ -31,7 +31,7 @@ public abstract class SpawnEggItemMixin {
                 || !(context.getLevel().getBlockEntity(context.getClickedPos()) instanceof SpawnerBlockEntity)) {
             return;
         }
-        player.sendSystemMessage(Component.literal("Only players in Creative can change a spawner's mob on this server.")
+        player.sendSystemMessage(Component.translatable("message.multiplayerspawners.spawn_eggs_creative_only")
                 .withStyle(ChatFormatting.RED), true);
         cir.setReturnValue(InteractionResult.FAIL);
     }
