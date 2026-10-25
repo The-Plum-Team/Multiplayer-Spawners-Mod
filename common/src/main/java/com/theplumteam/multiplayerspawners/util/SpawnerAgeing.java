@@ -82,7 +82,7 @@ public final class SpawnerAgeing {
 
         for (ServerPlayer player : usedUp) {
             SpawnerStateManager.disableSpawnerForPlayer(level, pos, player.getName().getString());
-            Notices.send(player, Component.literal("This spawner has run out for you. It stays for the other players.")
+            Notices.send(player, Component.translatable("message.multiplayerspawners.ran_out")
                     .withStyle(ChatFormatting.GOLD));
         }
         NetworkHandler.getInstance().sendSpawnerStateToTracking(level, pos, Set.copyOf(disabledPlayers), false);

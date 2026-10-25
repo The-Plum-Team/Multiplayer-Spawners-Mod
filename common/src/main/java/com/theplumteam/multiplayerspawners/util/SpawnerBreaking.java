@@ -173,7 +173,7 @@ public final class SpawnerBreaking {
         } else {
             // Others had disabled it already.
             sendClickableBreakMessage(player, pos, canBreak);
-            Notices.send(player, Component.literal("It will no longer spawn creatures while you are nearby.").withStyle(ChatFormatting.RED));
+            Notices.send(player, Component.translatable("message.multiplayerspawners.no_longer_spawns").withStyle(ChatFormatting.RED));
             sendRespawnNotice(player);
         }
         return true;
@@ -234,8 +234,7 @@ public final class SpawnerBreaking {
                         && !SpawnerStateManager.isSpawnerDisabledForPlayer(level, pos, serverPlayer.getName().getString())) {
                     SpawnerStateManager.disableSpawnerForPlayer(level, pos, serverPlayer.getName().getString());
                     playersAffected++;
-                    Notices.send(serverPlayer, Component.literal("A spawner in this area has been disabled by "
-                            + breaker.getName().getString() + ".").withStyle(ChatFormatting.GOLD));
+                    Notices.send(serverPlayer, Component.translatable("message.multiplayerspawners.disabled_by", breaker.getName()).withStyle(ChatFormatting.GOLD));
                 }
             }
         }
@@ -254,8 +253,7 @@ public final class SpawnerBreaking {
             }
         }
         if (playersAffected > 0) {
-            Notices.send(breaker, Component.literal("Group disabling: Spawner disabled for " + playersAffected
-                    + " nearby player(s).").withStyle(ChatFormatting.GOLD));
+            Notices.send(breaker, Component.translatable("message.multiplayerspawners.group_disabled", playersAffected).withStyle(ChatFormatting.GOLD));
         }
         return newForBreaker;
     }
@@ -264,8 +262,7 @@ public final class SpawnerBreaking {
     private static void sendRespawnNotice(ServerPlayer player) {
         int minutes = ModConfig.SERVER.spawnerRespawnMinutes.get();
         if (minutes > 0) {
-            Notices.send(player, Component.literal("It will be active for you again in " + minutes
-                    + (minutes == 1 ? " minute." : " minutes.")).withStyle(ChatFormatting.GRAY));
+            Notices.send(player, Component.translatable(minutes == 1 ? "message.multiplayerspawners.respawn_in.minute" : "message.multiplayerspawners.respawn_in.minutes", minutes).withStyle(ChatFormatting.GRAY));
         }
     }
 
@@ -294,16 +291,16 @@ public final class SpawnerBreaking {
     }
 
     private static void sendClickableBreakMessage(ServerPlayer player, BlockPos pos, boolean includeBreakLink) {
-        MutableComponent explanationMessage = Component.literal("The spawner is disabled for you and nearby players. Other players will have it active so they can enjoy the dungeon.").withStyle(ChatFormatting.LIGHT_PURPLE);
+        MutableComponent explanationMessage = Component.translatable("message.multiplayerspawners.disabled").withStyle(ChatFormatting.LIGHT_PURPLE);
 
         if (includeBreakLink) {
             explanationMessage.append(Component.literal(" "));
-            MutableComponent clickablePart = Component.literal("[Click here to break it]")
+            MutableComponent clickablePart = Component.translatable("message.multiplayerspawners.break_link")
                     .withStyle(style -> style
                             .withColor(ChatFormatting.RED)
                             .withBold(true)
                             .withClickEvent(runCommand("/multiplayerspawners allow_break " + pos.getX() + " " + pos.getY() + " " + pos.getZ()))
-                            .withHoverEvent(showText(Component.literal("Click to break this spawner").withStyle(ChatFormatting.YELLOW)))
+                            .withHoverEvent(showText(Component.translatable("message.multiplayerspawners.break_link.hover").withStyle(ChatFormatting.YELLOW)))
                     );
             explanationMessage.append(clickablePart);
         }

@@ -4,10 +4,12 @@
 For each lane (artifact node of release/release-matrix.json) this starts the loader's dedicated
 server with the production jar, installs the same loader's client from the matrix's pinned
 installer and launches three real clients (Alice, Bob and Carol), each on its own virtual
-display (Xvfb), that join the server. The players act through real input: xdotool moves the
-mouse and presses buttons and keys in each game window, exactly as a person would. The server is
-driven over RCON only for what a person would do with commands or by walking: placing the test
-spawners, teleporting players to look at them, handing them items, reading block data.
+display (Xvfb), that join the server. Carol plays in Spanish (es_es), so what she is told proves
+that the mod's messages reach a player in their own language. The players act through real
+input: xdotool moves the mouse and presses buttons and keys in each game window, exactly as a
+person would. The server is driven over RCON only for what a person would do with commands or
+by walking: placing the test spawners, teleporting players to look at them, handing them items,
+reading block data.
 
 The scenario, in the order it runs (each checkpoint fails the lane on its own):
 
@@ -83,6 +85,8 @@ ROOT = server_smoke.ROOT
 MATRIX = server_smoke.MATRIX
 MOD_ID = server_smoke.MOD_ID
 PLAYERS = ("Alice", "Bob", "Carol")
+# The game language of each player; the others play in English.
+LANGUAGES = {"Carol": "es_es"}
 WIDTH, HEIGHT = 1280, 720
 RCON_PASSWORD = "multiplayerspawners-e2e"
 
@@ -353,7 +357,7 @@ class Client:
         (self.game / "mods").mkdir(parents=True)
         for mod in mods:
             shutil.copy(mod, self.game / "mods")
-        (self.game / "options.txt").write_text(OPTIONS)
+        (self.game / "options.txt").write_text(OPTIONS + f"lang:{LANGUAGES.get(name, 'en_us')}\n")
         self.display: str | None = None
         self.xvfb: subprocess.Popen | None = None
         self.process: subprocess.Popen | None = None
@@ -847,7 +851,7 @@ class Lane:
         self.hit("Carol", S1, (3, 0))
         self.wait_for("Carol in S1's DisabledPlayers",
                       lambda: self.disabled_players(S1) == {"Alice", "Bob", "Carol"}, 10)
-        self.expect_chat("Carol", "It will no longer spawn creatures while you are nearby.", carol)
+        self.expect_chat("Carol", "Ya no generará criaturas mientras estés cerca.", carol)
         self.expect_view("Carol", S1, (3, 0), "03-carol-s1-disabled", active=False, capture="s1_disabled",
                          context=" after her own hit on a spawner others disabled")
 
@@ -991,7 +995,7 @@ class Lane:
         self.hit("Carol", S2, (3, 0))
         disabled_at = time.monotonic()
         self.wait_for("Carol in S2's DisabledPlayers again", lambda: self.disabled_players(S2) == {"Carol"}, 10)
-        self.expect_chat("Carol", "It will be active for you again in 1 minute.", carol)
+        self.expect_chat("Carol", "Volverá a estar activo para ti dentro de 1 minuto.", carol)
         self.expect_view("Carol", S2, (3, 0), "07-carol-s2-disabled-again", active=False)
         self.wait_for("S2 to be active again for Carol a minute later", lambda: not self.disabled_players(S2), 90, 1)
         elapsed = time.monotonic() - disabled_at
