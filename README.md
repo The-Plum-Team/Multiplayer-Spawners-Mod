@@ -16,8 +16,9 @@ stays active for everyone else, so every player gets to clear the same dungeon.
   when it is empty or disabled for you.
 
 **Works with** [Apothic Spawners](https://modrinth.com/mod/apothic-spawners) (its spawners are
-disabled per player like vanilla ones, within their own activation range) and
-[Ageing Spawners](https://modrinth.com/mod/ageing-spawners): a spawner that runs out is disabled for
+disabled per player like vanilla ones, within their own activation range),
+[Ageing Spawners](https://modrinth.com/mod/ageing-spawners) and the spawn limit of
+[Spawner Control](https://modrinth.com/mod/spawner-control): a spawner that runs out is disabled for
 the players who used it up and stays for everyone else, instead of disappearing for the whole server.
 
 **Mods that break blocks for a player** on Forge and NeoForge, such as the 3x3 hammers of
