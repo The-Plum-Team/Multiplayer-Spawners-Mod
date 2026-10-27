@@ -26,6 +26,10 @@ the players who used it up and stays for everyone else, instead of disappearing 
 [Ars Nouveau](https://modrinth.com/mod/ars-nouveau), disable a spawner for that player like a hit,
 instead of breaking it. A machine that breaks blocks for nobody leaves spawners as they are.
 
+**Explosions** do not break spawners either: TNT a player lit (or a fireball they sent back)
+disables a spawner for that player like a hit, and any other explosion, such as a creeper's, leaves
+it as it is. Player-placed spawners treated as vanilla still blow up.
+
 **Single-use spawners** — [Quark](https://modrinth.com/mod/quark)'s monster box and
 [Apotheosis](https://modrinth.com/mod/apotheosis)' boss spawner — spawn their mobs or boss once and
 then remove themselves. They now stay: used up only for the players near them when they trigger
