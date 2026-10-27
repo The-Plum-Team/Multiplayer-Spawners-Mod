@@ -35,7 +35,8 @@ public abstract class SpawnerTickMixin {
         if (!(spawner instanceof SpawnerDataAccessor accessor)) {
             return;
         }
-        // Until the tick returns, a removal of this spawner may be Ageing Spawners ageing it out.
+        // Until the tick returns, a removal of this spawner may be Ageing Spawners or Spawner Control
+        // ageing it out.
         SpawnerAgeing.startTick(level, pos);
 
         // Once a second per spawner (spread over the ticks), make it active again for the players
