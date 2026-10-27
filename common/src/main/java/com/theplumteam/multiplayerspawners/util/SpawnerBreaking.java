@@ -13,9 +13,11 @@ import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundLevelEventPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -26,6 +28,7 @@ import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -33,7 +36,8 @@ import java.util.Set;
  * ServerPlayerGameModeMixin. Other mods break blocks for a player without it, firing only their
  * loader's block break event, which passes them to {@link #onModBreak}: the extra blocks of an area
  * tool (Tinkers' Construct's hammers), a spell that breaks blocks (Ars Nouveau's Break, cast with a
- * fake player that carries the caster's UUID), a machine's fake player.
+ * fake player that carries the caster's UUID), a machine's fake player. An explosion reaches
+ * {@link #onExplosion} with the blocks it is about to destroy.
  */
 public final class SpawnerBreaking {
 
@@ -76,15 +80,53 @@ public final class SpawnerBreaking {
                 return false;
             }
         }
-        ServerPlayer player = owner(level, breaker);
+        return keepFor(level, pos, breaker);
+    }
+
+    /**
+     * An explosion about to destroy {@code blocks}: the spawners among them stay. One that a player
+     * caused (TNT they lit, a fireball they sent back) is a hit for that player, like a mod's break;
+     * any other one leaves the spawner as it is. A spawner that breaks like a vanilla one still breaks.
+     */
+    public static void onExplosion(Level level, Explosion explosion, List<BlockPos> blocks) {
+        if (level.isClientSide()) {
+            return;
+        }
+        LivingEntity cause = destroysBlocks(explosion) ? explosion.getIndirectSourceEntity() : null;
+        blocks.removeIf(pos -> {
+            BlockState state = level.getBlockState(pos);
+            if (!(state.getBlock() instanceof SpawnerBlock) && !OneShotSpawners.isOneShot(state)) {
+                return false;
+            }
+            return keepFor(level, pos, cause instanceof Player player ? player : null);
+        });
+    }
+
+    /** Whether an explosion destroys the blocks it reaches (a wind charge only triggers them). */
+    private static boolean destroysBlocks(Explosion explosion) {
+        //? if >=1.21 {
+        Explosion.BlockInteraction interaction = explosion.getBlockInteraction();
+        return interaction == Explosion.BlockInteraction.DESTROY || interaction == Explosion.BlockInteraction.DESTROY_WITH_DECAY;
+        //?} else {
+        /*return explosion.interactsWithBlocks();
+        *///?}
+    }
+
+    /**
+     * A block that another mod or an explosion breaks for {@code breaker}, or for nobody (null).
+     *
+     * @return whether the block stays
+     */
+    private static boolean keepFor(Level level, BlockPos pos, Player breaker) {
+        ServerPlayer player = breaker == null ? null : owner(level, breaker);
         if (player != null) {
             boolean kept = hit(player, level, pos, false);
             if (kept) {
-                Constants.debug("Kept the spawner at {} that a mod broke for {}", pos, player.getName().getString());
+                Constants.debug("Kept the spawner at {} that a mod or an explosion broke for {}", pos, player.getName().getString());
             }
             return kept;
         }
-        // Nobody to disable it for (a machine): it stays as it is, unless it breaks like vanilla.
+        // Nobody to disable it for (a machine, a creeper): it stays as it is, unless it breaks like vanilla.
         BlockState state = level.getBlockState(pos);
         if (OneShotSpawners.isOneShot(state)) {
             return true;

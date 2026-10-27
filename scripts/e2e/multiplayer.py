@@ -33,6 +33,7 @@ The scenario, in the order it runs (each checkpoint fails the lane on its own):
   player-placed     a spawner Alice places looks inactive while empty and steel-grey with a mob, and breaks normally
   break-tools       with spawner tools on, a tool of the breaks_spawners tag breaks a spawner in one hit
   spawn-eggs        with spawn eggs limited to Creative, Alice's egg leaves a spawner's mob as it was until she is in Creative
+  explosions        TNT nobody lit leaves a spawner as it was; TNT Alice lit disables one for her; neither breaks it
   stopped           the server stops cleanly and nothing logged an error from the mod
   evidence          every capture e2e/scenario-contract.json declares was taken by a passed check
 
@@ -93,7 +94,7 @@ RCON_PASSWORD = "multiplayerspawners-e2e"
 CHECKPOINTS = ("joined", "initial-view", "spawns", "group-disable", "per-player-view", "suppressed",
                "active-for-others", "break-message", "joined-disable", "persistence", "join-sync",
                "break-link", "replaced", "quiet", "group-again", "respawn", "torch", "player-placed", "break-tools", "spawn-eggs",
-               "stopped",
+               "explosions", "stopped",
                "evidence")
 
 # The world is a flat world: the ground is the grass block layer at y=-61, players stand at y=-60.
@@ -105,6 +106,8 @@ PLACED = (-30, FEET, 10)  # where Alice places a spawner herself
 TORCH = (42, FEET, 12)   # within the 7 blocks of S2 that put a torch out
 TOOLED = (-30, FEET, 30)  # the spawner Alice breaks with a spawner tool
 EGGED = (-30, FEET, 50)  # the spawner Alice uses spawn eggs on
+BLASTED = (-30, FEET, 70)  # the spawner TNT that nobody lit blows up next to
+LIT = (-30, FEET, 90)  # the spawner TNT that Alice lit blows up next to
 SPAWNER_TOOL = "minecraft:golden_pickaxe"  # added to multiplayerspawners:breaks_spawners by the test datapack
 SPAWNED_TAG = "mps_e2e"
 CONTRACT = ROOT / "e2e" / "scenario-contract.json"
@@ -1116,6 +1119,50 @@ class Lane:
                       lambda: self.spawner_mob(EGGED) == "minecraft:sheep", 10)
         self.run(f"setblock {x} {y} {z} minecraft:air")
         self.run("kill @e[type=minecraft:cow]")
+
+    def blow_up_beside(self, block: tuple[int, int, int], player: str | None) -> None:
+        """Explode TNT two blocks from `block`, lit by `player` with flint and steel or, without one,
+        summoned already lit, and wait until it has destroyed the planks on top of it."""
+
+        x, y, z = block
+        tnt = (x, y, z - 2)
+        marker = (x, y + 1, z - 2)
+        self.run(f"setblock {marker[0]} {marker[1]} {marker[2]} minecraft:oak_planks")
+        if player is None:
+            self.run(f"summon minecraft:tnt {tnt[0] + 0.5} {tnt[1]} {tnt[2] + 0.5}")
+        else:
+            self.run(f"setblock {tnt[0]} {tnt[1]} {tnt[2]} minecraft:tnt")
+            self.hold(player, "minecraft:flint_and_steel")
+            self.look_at_block(player, tnt, (0, -2))
+            time.sleep(1.5)
+            self.clients[player].right_click()
+            self.wait_for(f"{player} to light the TNT", lambda: self.block_is(tnt, "minecraft:air"), 10)
+            self.park(player, block, 40)
+        self.wait_for("the TNT to explode", lambda: self.block_is(marker, "minecraft:air"), 20)
+        self.clear_spawned()
+
+    def step_explosions(self) -> None:
+        for player in PLAYERS:
+            self.park(player, BLASTED, 40)
+        self.place_spawner(BLASTED)
+        x, y, z = BLASTED
+        self.run(f"data merge block {x} {y} {z} {{Delay:600s}}")
+        self.blow_up_beside(BLASTED, None)
+        self.check(self.block_is(BLASTED, "minecraft:spawner"), "TNT that nobody lit broke the spawner")
+        disabled = self.disabled_players(BLASTED)
+        self.check(not disabled, f"TNT that nobody lit disabled the spawner for {sorted(disabled)}")
+        self.expect_view("Alice", BLASTED, (0, 4), "11-alice-blasted", active=True)
+        self.park("Alice", BLASTED, 40)
+
+        self.place_spawner(LIT)
+        x, y, z = LIT
+        self.run(f"data merge block {x} {y} {z} {{Delay:600s}}")
+        self.blow_up_beside(LIT, "Alice")
+        self.check(self.block_is(LIT, "minecraft:spawner"), "TNT that Alice lit broke the spawner")
+        disabled = self.disabled_players(LIT)
+        self.check(disabled == {"Alice"}, f"TNT that Alice lit disabled the spawner for {sorted(disabled)}, not Alice")
+        self.expect_view("Alice", LIT, (0, 4), "11-alice-lit", active=False)
+        self.expect_view("Carol", LIT, (0, 4), "11-carol-lit", active=True)
 
     def step_stopped(self) -> None:
         for client in self.clients.values():

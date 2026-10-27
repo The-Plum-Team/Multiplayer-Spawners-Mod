@@ -9,6 +9,7 @@
     "BlockItemMixin",
     "BlockMixin",
     "BoundTickingBlockEntityMixin",
+    "ExplosionMixin",
     "LevelChunkMixin",
     "LevelMixin",
     "ServerPlayerGameModeMixin",
