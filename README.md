@@ -60,9 +60,14 @@ On Fabric the mod needs Fabric API.
 | `<world>/serverconfig/multiplayerspawners-server.toml` | group disabling and its radius, respawn time, chat notices, single-use spawner range, torch delay, break attempts, break message, breaking with spawner tools, spawn eggs on spawners, vanilla player-placed spawners |
 | `config/multiplayerspawners-client.toml` | debug logging |
 
-Operators (level 2) can change the server settings in game; the change is saved to the file:
+Operators (level 2) can change the server settings in game, and each change is saved to the file.
+The **settings menu** holds them all: the message a spawner sends an operator has a **[Settings]**
+link that opens it (so does `/multiplayerspawners settings`), with a switch or a slider for each
+setting, grouped in tabs. It needs the mod in the operator's game; the server checks every change
+it receives. Most of them also have a command:
 
 ```
+/multiplayerspawners settings
 /multiplayerspawners toggle_placed_vanilla
 /multiplayerspawners toggle_break_message
 /multiplayerspawners toggle_break_tools
@@ -113,7 +118,8 @@ CI runs two tests on every lane (34 of them, see the table above) with the produ
   what the server stores and what each player sees: a hit disables a spawner for the player and
   the players near them but not for the others, the spawner stops spawning only while nobody it is
   active for is near, each player sees it their own way (also after a restart and a rejoin), the
-  chat link breaks it, a torch near it goes out, and a spawner a player places stays vanilla. The
+  chat link breaks it, a torch near it goes out, a spawner a player places stays vanilla, and an
+  operator opens the settings menu from the chat and changes a setting in it. The
   script's docstring lists every checkpoint; the screenshots of what each player saw are kept with
   the CI run. On `main`, CI also hands the captures to the
 [mod-base](https://github.com/The-Plum-Team/mod-base) kit, which publishes them on the project site.

@@ -74,14 +74,32 @@ val sourceRenames = buildList {
     if (atLeast("1.21.11")) add(Regex("\\bResourceLocation\\b") to "Identifier")
     // 26.1 renamed Fabric API's play payload registries after the packet direction.
     if (atLeast("26.1")) add(Regex("\\bplayS2C\\(\\)") to "clientboundPlay()")
+    if (atLeast("26.1")) add(Regex("\\bplayC2S\\(\\)") to "serverboundPlay()")
     // 26.3 renamed PushReaction.DESTROY to POPPED.
     if (atLeast("26.3")) add(Regex("\\bPushReaction\\.DESTROY\\b") to "PushReaction.POPPED")
 }
-if (sourceRenames.isNotEmpty()) {
+// 26.1 moved the GUI onto the extract pipeline: GuiGraphics became GuiGraphicsExtractor and the
+// render hooks became extract hooks, with the same parameters. Only the settings menu draws GUI,
+// so these apply to its package alone.
+val guiRenames = buildList {
+    if (atLeast("26.1")) {
+        add(Regex("\\bGuiGraphics\\b") to "GuiGraphicsExtractor")
+        add(Regex("\\.drawString\\(") to ".text(")
+        add(Regex("\\brenderContents\\b") to "extractContents")
+        add(Regex("\\brenderWidget\\b") to "extractWidgetRenderState")
+        add(Regex("\\brenderBackground\\b") to "extractBackground")
+        add(Regex("\\b(void |super\\.)render\\(") to "\$1extractRenderState(")
+    }
+}
+if (sourceRenames.isNotEmpty() || guiRenames.isNotEmpty()) {
     tasks.matching { it.name == "stonecutterGenerate" }.configureEach {
         inputs.property("mpsSourceRenames", sourceRenames.map { it.first.pattern + "=" + it.second })
+        inputs.property("mpsGuiRenames", guiRenames.map { it.first.pattern + "=" + it.second })
         (this as CopySpec).filesMatching("**/*.java") {
             filter { line -> sourceRenames.fold(line) { text, (pattern, replacement) -> pattern.replace(text, replacement) } }
+        }
+        (this as CopySpec).filesMatching("**/client/gui/*.java") {
+            filter { line -> guiRenames.fold(line) { text, (pattern, replacement) -> pattern.replace(text, replacement) } }
         }
     }
 }

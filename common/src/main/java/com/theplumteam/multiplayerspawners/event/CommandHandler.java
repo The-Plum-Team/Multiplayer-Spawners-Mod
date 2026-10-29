@@ -49,7 +49,7 @@ public class CommandHandler {
     /**
      * Operators of level 2 (game masters), as vanilla's own world-changing commands require.
      */
-    private static boolean isGamemaster(CommandSourceStack source) {
+    public static boolean isGamemaster(CommandSourceStack source) {
         //? if >=1.21.11 {
         return source.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER);
         //?} else {
@@ -59,6 +59,28 @@ public class CommandHandler {
 
     public static void register(com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("multiplayerspawners")
+                // No permission node: from 1.21.6 a chat link to a command that has one asks the
+                // player to confirm it. Opening the menu changes nothing, and every change made in
+                // it is checked again.
+                .then(Commands.literal("settings")
+                        .executes(context -> {
+                            CommandSourceStack source = context.getSource();
+                            if (!isGamemaster(source)) {
+                                source.sendFailure(Component.translatable("commands.multiplayerspawners.settings.operators_only"));
+                                return 0;
+                            }
+                            if (!(source.getEntity() instanceof ServerPlayer player)) {
+                                source.sendFailure(Component.translatable("commands.multiplayerspawners.settings.players_only"));
+                                return 0;
+                            }
+                            if (!NetworkHandler.getInstance().canOpenSettings(player)) {
+                                source.sendFailure(Component.translatable("commands.multiplayerspawners.settings.needs_mod"));
+                                return 0;
+                            }
+                            NetworkHandler.getInstance().openSettings(player);
+                            return 1;
+                        })
+                )
                 .then(Commands.literal("toggle_placed_vanilla")
                         .requires(CommandHandler::isGamemaster)
                         .executes(context -> {

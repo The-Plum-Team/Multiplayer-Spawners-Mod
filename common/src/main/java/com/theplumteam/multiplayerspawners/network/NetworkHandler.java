@@ -1,8 +1,11 @@
 package com.theplumteam.multiplayerspawners.network;
 
 import com.theplumteam.multiplayerspawners.Constants;
+import com.theplumteam.multiplayerspawners.client.ClientSettings;
 import com.theplumteam.multiplayerspawners.client.ClientSpawnerData;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
+import com.theplumteam.multiplayerspawners.config.ServerSettings;
+import com.theplumteam.multiplayerspawners.event.CommandHandler;
 import com.theplumteam.multiplayerspawners.platform.Services;
 import com.theplumteam.multiplayerspawners.util.OneShotData;
 import com.theplumteam.multiplayerspawners.util.OneShotSpawners;
@@ -20,7 +23,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Spawner state sync. This class decides what to send; each loader only moves packets.
+ * Spawner state sync and the settings menu. This class decides what to send; each loader only
+ * moves packets.
  */
 public abstract class NetworkHandler {
 
@@ -40,6 +44,49 @@ public abstract class NetworkHandler {
     public abstract void init();
 
     protected abstract void sendToPlayer(ServerPlayer player, SpawnerStatePacket packet);
+
+    protected abstract void sendSettingsToPlayer(ServerPlayer player, SettingsPacket packet);
+
+    /** Sends a change made in the settings menu to the server. Runs on the client. */
+    public abstract void sendSettingChange(SettingChangePacket packet);
+
+    /**
+     * Whether the player's game has this mod, so it can show the settings menu. Forge and NeoForge
+     * only let players with the mod join; Fabric also lets in vanilla clients.
+     */
+    public boolean canOpenSettings(ServerPlayer player) {
+        return true;
+    }
+
+    /** Opens the settings menu on an operator's screen, with the server's current values. */
+    public void openSettings(ServerPlayer player) {
+        sendSettingsToPlayer(player, new SettingsPacket(ServerSettings.snapshot(), true));
+    }
+
+    /**
+     * Applies a change an operator made in the settings menu. Runs on the server thread. The
+     * permission is checked again here: the packet can come from any client.
+     */
+    public static void handleSettingChangeOnServer(ServerPlayer player, SettingChangePacket packet) {
+        if (!CommandHandler.isGamemaster(player.createCommandSourceStack())) {
+            Constants.LOG.warn("{} tried to change {} without being an operator", player.getName().getString(), packet.key());
+            return;
+        }
+        if (!(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        if (!ServerSettings.apply(level.getServer(), player, packet.key(), packet.value())) {
+            Constants.LOG.warn("{} sent an invalid setting {} = {}", player.getName().getString(), packet.key(), packet.value());
+        }
+        // The values the server now holds, also when it refused the change, so the menu never shows
+        // one the server does not have.
+        getInstance().sendSettingsToPlayer(player, new SettingsPacket(ServerSettings.snapshot(), false));
+    }
+
+    /** Opens or refreshes the settings menu. Runs on the client thread. */
+    public static void handleSettingsOnClient(SettingsPacket packet) {
+        ClientSettings.receive(packet);
+    }
 
     /**
      * Sends one spawner's state to one player.
