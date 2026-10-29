@@ -34,6 +34,8 @@ The scenario, in the order it runs (each checkpoint fails the lane on its own):
   break-tools       with spawner tools on, a tool of the breaks_spawners tag breaks a spawner in one hit
   spawn-eggs        with spawn eggs limited to Creative, Alice's egg leaves a spawner's mob as it was until she is in Creative
   explosions        TNT nobody lit leaves a spawner as it was; TNT Alice lit disables one for her; neither breaks it
+  settings          an operator's break message links the settings menu (a player's does not); Alice opens it from
+                    the chat and switches group disabling off and on again, and the server saves each change
   stopped           the server stops cleanly and nothing logged an error from the mod
   evidence          every capture e2e/scenario-contract.json declares was taken by a passed check
 
@@ -94,7 +96,7 @@ RCON_PASSWORD = "multiplayerspawners-e2e"
 CHECKPOINTS = ("joined", "initial-view", "spawns", "group-disable", "per-player-view", "suppressed",
                "active-for-others", "break-message", "joined-disable", "persistence", "join-sync",
                "break-link", "replaced", "quiet", "group-again", "respawn", "torch", "player-placed", "break-tools", "spawn-eggs",
-               "explosions", "stopped",
+               "explosions", "settings", "stopped",
                "evidence")
 
 # The world is a flat world: the ground is the grass block layer at y=-61, players stand at y=-60.
@@ -108,6 +110,7 @@ TOOLED = (-30, FEET, 30)  # the spawner Alice breaks with a spawner tool
 EGGED = (-30, FEET, 50)  # the spawner Alice uses spawn eggs on
 BLASTED = (-30, FEET, 70)  # the spawner TNT that nobody lit blows up next to
 LIT = (-30, FEET, 90)  # the spawner TNT that Alice lit blows up next to
+SETTINGS_SPAWNER = (-30, FEET, 110)  # the spawner whose break message Alice opens the settings from
 SPAWNER_TOOL = "minecraft:golden_pickaxe"  # added to multiplayerspawners:breaks_spawners by the test datapack
 SPAWNED_TAG = "mps_e2e"
 CONTRACT = ROOT / "e2e" / "scenario-contract.json"
@@ -498,17 +501,27 @@ ACTIVE_MIN, DISABLED_MAX = 0.03, 0.01
 STEEL_MIN = 0.08
 
 
-def link_position(image) -> tuple[int, int] | None:
-    """The middle of the red "[Click here to break it]" text, on the lowest chat line that has it.
+def is_break_link_red(r: int, g: int, b: int) -> bool:
+    """The red of "[Click here to break it]". The hotbar's hearts are a different red."""
 
-    Chat lines are above the hotbar, whose hearts are a different red."""
+    return r > 240 and 70 < g < 100 and 70 < b < 100
+
+
+def is_settings_link_aqua(r: int, g: int, b: int) -> bool:
+    """The aqua of the operators' "[Settings]" link."""
+
+    return 70 < r < 100 and g > 240 and b > 240
+
+
+def link_position(image, colour=is_break_link_red) -> tuple[int, int] | None:
+    """The middle of a chat link drawn in `colour` (the red break link by default), on the lowest
+    chat line that has it. Chat lines are above the hotbar."""
 
     pixels = image.load()
     rows: dict[int, list[int]] = {}
     for y in range(HEIGHT // 3, HEIGHT - 80):
         for x in range(0, WIDTH * 2 // 3):
-            r, g, b = pixels[x, y]
-            if r > 240 and 70 < g < 100 and 70 < b < 100:
+            if colour(*pixels[x, y]):
                 rows.setdefault(y, []).append(x)
     if not rows:
         return None
@@ -524,6 +537,32 @@ def link_position(image) -> tuple[int, int] | None:
     lowest = bands[-1]
     xs = [x for y in lowest for x in rows[y]]
     return (min(xs) + max(xs)) // 2, (lowest[0] + lowest[-1]) // 2
+
+
+# The settings menu's colours (common/.../client/gui): its header strip, a switch that is on and the
+# "Saved" tick in its footer.
+MENU_HEADER = (0x2E, 0x3A, 0x4A)
+SWITCH_ON = (0x3C, 0x8A, 0x3C)
+SAVED_GREEN = (0x7F, 0xD6, 0x7F)
+
+
+def colour_box(image, colour: tuple[int, int, int]) -> tuple[int, int, int, int, int] | None:
+    """The bounding box (left, top, right, bottom) and the pixel count of `colour` on the screen."""
+
+    count, left, top, right, bottom = 0, WIDTH, HEIGHT, -1, -1
+    for index, pixel in enumerate(image.get_flattened_data()):
+        if pixel == colour:
+            x, y = index % WIDTH, index // WIDTH
+            count += 1
+            left, top, right, bottom = min(left, x), min(top, y), max(right, x), max(bottom, y)
+    return (left, top, right, bottom, count) if count else None
+
+
+def menu_open(image) -> bool:
+    """Whether the settings dialog is on the screen: its slate header strip, about 900 by 40 pixels."""
+
+    box = colour_box(image, MENU_HEADER)
+    return box is not None and box[4] > 20000
 
 
 # --------------------------------------------------------------------------------------------
@@ -1163,6 +1202,85 @@ class Lane:
         self.check(disabled == {"Alice"}, f"TNT that Alice lit disabled the spawner for {sorted(disabled)}, not Alice")
         self.expect_view("Alice", LIT, (0, 4), "11-alice-lit", active=False)
         self.expect_view("Carol", LIT, (0, 4), "11-carol-lit", active=True)
+
+    def server_setting(self, key: str) -> str | None:
+        """A value of the server file, as written there."""
+
+        path = self.server.directory / "world" / "serverconfig" / f"{MOD_ID}-server.toml"
+        for line in path.read_text(encoding="utf-8").splitlines():
+            name, _, value = line.strip().partition(" = ")
+            if name == key:
+                return value
+        return None
+
+    def step_settings(self) -> None:
+        for player in PLAYERS:
+            self.park(player, SETTINGS_SPAWNER, 40)
+        self.place_spawner(SETTINGS_SPAWNER)
+        x, y, z = SETTINGS_SPAWNER
+        self.run(f"data merge block {x} {y} {z} {{Delay:600s}}")
+        self.check("Made Alice a server operator" in self.run("op Alice"), "could not make Alice an operator")
+
+        # Bob is no operator: his break message has the break link and no settings link.
+        bob = len(self.clients["Bob"].chat())
+        self.hit("Bob", SETTINGS_SPAWNER, (0, 3))
+        self.hit("Bob", SETTINGS_SPAWNER, (0, 3))
+        self.expect_chat("Bob", "[Click here to break it]", bob)
+        self.check(not self.chat_contains("Bob", "[Settings]", bob), "Bob, who is no operator, was offered the settings")
+        self.park("Bob", SETTINGS_SPAWNER, 40)
+
+        alice = len(self.clients["Alice"].chat())
+        self.hit("Alice", SETTINGS_SPAWNER, (0, -3))
+        self.hit("Alice", SETTINGS_SPAWNER, (0, -3))
+        self.expect_chat("Alice", "[Settings]", alice)
+        client = self.clients["Alice"]
+        client.focus()
+        client.xdotool("key", "t")
+        time.sleep(1.5)
+        position = link_position(client.screenshot("12-alice-chat-settings"), is_settings_link_aqua)
+        self.check(position is not None,
+                   "the settings link is not visible in Alice's open chat (screenshots/12-alice-chat-settings.png)")
+        client.xdotool("mousemove", str(position[0]), str(position[1]))
+        time.sleep(0.5)
+        client.xdotool("click", "1")
+        # Out of the way: under the mouse a row lights up and a slider fills in a switch's green.
+        client.xdotool("mousemove", "40", "40")
+        opened = self.wait_for("the settings menu on Alice's screen",
+                               lambda: menu_open(image := client.screenshot("12-alice-settings")) and image, 15)
+        switch = colour_box(opened, SWITCH_ON)
+        self.check(switch is not None and self.server_setting("enableGroupDisabling") == "true",
+                   "the settings menu shows no switch on for group disabling (screenshots/12-alice-settings.png)")
+        left, top, right, bottom, _ = switch
+        self.capture("Alice", "settings_open", "12-alice-settings",
+                     f"Alice clicked the aqua [Settings] link at {position[0]},{position[1]} in her chat and the "
+                     f"settings menu opened on its Spawners tab, with group disabling switched on, as the server file has it.")
+
+        # Switch group disabling off with the mouse; the server saves it.
+        client.xdotool("mousemove", str((left + right) // 2), str((top + bottom) // 2))
+        time.sleep(0.5)
+        client.xdotool("click", "1")
+        self.wait_for("the server to save group disabling off",
+                      lambda: self.server_setting("enableGroupDisabling") == "false", 10)
+        client.xdotool("mousemove", "40", "40")
+        time.sleep(0.5)
+        changed = self.wait_for("the menu to show the change as saved",
+                                lambda: colour_box(image := client.screenshot("12-alice-settings-off"), SAVED_GREEN)
+                                and image, 10)
+        self.check(colour_box(changed, SWITCH_ON) is None,
+                   "group disabling still shows switched on after the change (screenshots/12-alice-settings-off.png)")
+        self.capture("Alice", "settings_changed", "12-alice-settings-off",
+                     "Alice clicked the group disabling switch: it went off, the server wrote enableGroupDisabling = false "
+                     "to multiplayerspawners-server.toml and the menu says Saved.")
+
+        # And on again, then the menu closes with Escape.
+        client.xdotool("mousemove", str((left + right) // 2), str((top + bottom) // 2))
+        time.sleep(0.5)
+        client.xdotool("click", "1")
+        self.wait_for("the server to save group disabling on",
+                      lambda: self.server_setting("enableGroupDisabling") == "true", 10)
+        client.xdotool("key", "Escape")
+        self.wait_for("the settings menu to close", lambda: not menu_open(client.screenshot("12-alice-settings-closed")), 10)
+        self.run("deop Alice")
 
     def step_stopped(self) -> None:
         for client in self.clients.values():

@@ -32,10 +32,17 @@
                            "expectation": "The spawner only Carol disabled is still the golden, active spawner for Alice after the rejoin."}},
               {"id": "torch_out",
                "capture": {"title": "A torch next to a spawner goes out", "review_tier": "key",
-                           "expectation": "The torch Alice placed two blocks from a spawner has been put out: an unlit torch stands where she placed it."}}
+                           "expectation": "The torch Alice placed two blocks from a spawner has been put out: an unlit torch stands where she placed it."}},
+              {"id": "settings_open",
+               "capture": {"title": "An operator opens the settings from the chat", "review_tier": "key",
+                           "expectation": "Alice, an operator, clicked the [Settings] link of a spawner's message: the Multiplayer Spawners settings dialog is open over the blurred world on its Spawners tab, with group disabling switched on."}},
+              {"id": "settings_changed",
+               "capture": {"title": "A setting changed in the menu", "review_tier": "all",
+                           "expectation": "Alice switched group disabling off in the menu: its switch is off, the group radius slider is greyed out and the footer says Saved."}}
             ],
             "comparisons": [
-              {"id": "s1_view_changed", "first": "s1_initial", "second": "s1_disabled", "minimum_changed_fraction": 0.01}
+              {"id": "s1_view_changed", "first": "s1_initial", "second": "s1_disabled", "minimum_changed_fraction": 0.01},
+              {"id": "settings_switched", "first": "settings_open", "second": "settings_changed", "minimum_changed_fraction": 0.005}
             ]
           },
           {
