@@ -2,6 +2,7 @@ package com.theplumteam.multiplayerspawners.util;
 
 import com.theplumteam.multiplayerspawners.Constants;
 import com.theplumteam.multiplayerspawners.config.ModConfig;
+import com.theplumteam.multiplayerspawners.event.CommandHandler;
 import com.theplumteam.multiplayerspawners.network.NetworkHandler;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -345,6 +346,17 @@ public final class SpawnerBreaking {
                             .withHoverEvent(showText(Component.translatable("message.multiplayerspawners.break_link.hover").withStyle(ChatFormatting.YELLOW)))
                     );
             explanationMessage.append(clickablePart);
+        }
+        // Operators also get the settings menu, where they can change how spawners behave.
+        if (CommandHandler.isGamemaster(player.createCommandSourceStack()) && NetworkHandler.getInstance().canOpenSettings(player)) {
+            explanationMessage.append(Component.literal(" "));
+            explanationMessage.append(Component.translatable("message.multiplayerspawners.settings_link")
+                    .withStyle(style -> style
+                            .withColor(ChatFormatting.AQUA)
+                            .withBold(true)
+                            .withClickEvent(runCommand("/multiplayerspawners settings"))
+                            .withHoverEvent(showText(Component.translatable("message.multiplayerspawners.settings_link.hover").withStyle(ChatFormatting.YELLOW)))
+                    ));
         }
         player.sendSystemMessage(explanationMessage);
     }

@@ -156,6 +156,11 @@ public final class ModConfig {
             return value;
         }
 
+        /** The setting's name in the file. */
+        public String key() {
+            return key;
+        }
+
         void reset() {
             value = defaultValue;
         }
@@ -190,6 +195,14 @@ public final class ModConfig {
             super(section, key, defaultValue, comments);
             this.min = min;
             this.max = max;
+        }
+
+        public int min() {
+            return min;
+        }
+
+        public int max() {
+            return max;
         }
 
         @Override

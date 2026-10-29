@@ -1,0 +1,27 @@
+{
+  "providers": [
+    {
+      "type": "space",
+      "advances": {
+        " ": 3
+      }
+    },
+    {
+      "type": "bitmap",
+      "file": "multiplayerspawners:font/pixel.png",
+      "height": 10,
+      "ascent": 8,
+      "chars": [
+        "ABCDEFGHIJKLMNOP",
+        "QRSTUVWXYZ012345",
+        "6789():.,!?-/'+%",
+        "&¿¡ÀÁÂÃÄÅÈÉÊËÌÍÎ",
+        "ÏÑÒÓÔÕÖÙÚÛÜÇ\u0000\u0000\u0000\u0000"
+      ]
+    },
+    {
+      "type": "reference",
+      "id": "minecraft:default"
+    }
+  ]
+}
