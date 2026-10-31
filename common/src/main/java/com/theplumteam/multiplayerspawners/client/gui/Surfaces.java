@@ -27,8 +27,10 @@ public final class Surfaces {
 
     /** The dialog's face, its sidebar and the darker face of its content. */
     public static final int DIALOG_FACE = 0xFF2E2F32;
-    public static final int SIDEBAR = 0xFF3A3B3E;
+    public static final int SIDEBAR = 0xFF34353A;
     public static final int SIDEBAR_EDGE = 0xFF55565B;
+    /** The line between two tabs, across the sidebar. */
+    public static final int TAB_RULE = 0xFF2A2B2F;
     public static final int CONTENT = 0xFF26272A;
     /** The line between two rows of settings, and a row under the mouse. */
     public static final int ROW_LINE = 0xFF323336;
