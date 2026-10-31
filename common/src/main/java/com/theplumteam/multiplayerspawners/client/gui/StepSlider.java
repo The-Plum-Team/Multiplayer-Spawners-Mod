@@ -33,6 +33,28 @@ public class StepSlider extends AbstractSliderButton {
         setStep(current);
     }
 
+    /** Only the part between these heights takes the mouse: the rest is scrolled out of view. */
+    private int clipTop = Integer.MIN_VALUE;
+    private int clipBottom = Integer.MAX_VALUE;
+
+    public void clip(int top, int bottom) {
+        clipTop = top;
+        clipBottom = bottom;
+    }
+
+    @Override
+    public boolean isMouseOver(double mouseX, double mouseY) {
+        return mouseY >= clipTop && mouseY < clipBottom && super.isMouseOver(mouseX, mouseY);
+    }
+
+    // Before 1.21.4 a click is tested by clicked(), not by isMouseOver().
+    //? if <1.21.4 {
+    /*@Override
+    protected boolean clicked(double mouseX, double mouseY) {
+        return mouseY >= clipTop && mouseY < clipBottom && super.clicked(mouseX, mouseY);
+    }
+    *///?}
+
     /** The value chosen. */
     public int current() {
         return steps[index];
