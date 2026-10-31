@@ -24,8 +24,6 @@ final class SettingRows {
     private static final int BOTTOM = 7;
     private static final int LABEL_GAP = 8;
     private static final int MAX_LABEL_LINES = 2;
-    /** No description runs past this many lines: the rest is cut. */
-    private static final int MAX_DESCRIPTION_LINES = 3;
 
     /** What a row draws, laid out for its width. */
     record Layout(List<FormattedCharSequence> label, List<FormattedCharSequence> description, int height) {
@@ -37,8 +35,8 @@ final class SettingRows {
     static Layout layout(Font font, Component label, Component description, int rowWidth, int controlWidth) {
         List<FormattedCharSequence> labelLines = limit(UiText.wrap(font, label, rowWidth - 2 * SIDE - controlWidth - LABEL_GAP, LABEL_GAP),
                 MAX_LABEL_LINES);
-        List<FormattedCharSequence> descriptionLines = limit(UiText.wrap(font, description, rowWidth - 2 * SIDE, 2 * SIDE),
-                MAX_DESCRIPTION_LINES);
+        // A description is always shown whole: the content scrolls when the rows outgrow it.
+        List<FormattedCharSequence> descriptionLines = UiText.wrap(font, description, rowWidth - 2 * SIDE, 2 * SIDE);
         int height = TOP + FIRST_LINE + (labelLines.size() - 1) * LINE_HEIGHT
                 + (descriptionLines.isEmpty() ? 0 : GAP + descriptionLines.size() * LINE_HEIGHT - 1) + BOTTOM;
         return new Layout(labelLines, descriptionLines, height);

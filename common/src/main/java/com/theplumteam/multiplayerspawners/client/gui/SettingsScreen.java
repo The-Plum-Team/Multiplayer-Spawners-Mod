@@ -7,6 +7,7 @@ import com.theplumteam.multiplayerspawners.network.SettingChangePacket;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -31,16 +32,16 @@ import java.util.function.IntFunction;
 public class SettingsScreen extends Screen {
 
     private static final int SCREEN_MARGIN = 8;
-    private static final int PREFERRED_WIDTH = 470;
-    private static final int PREFERRED_HEIGHT = 340;
+    private static final int PREFERRED_WIDTH = 480;
+    private static final int PREFERRED_HEIGHT = 290;
     private static final int HEADER_HEIGHT = 26;
     private static final int HEADER_STRIP = 0xFF2E3A4A;
     private static final int HEADER_LINE = 0xFF6F8FB0;
     private static final int SIDEBAR_MIN_WIDTH = 96;
     private static final int SIDEBAR_MAX_WIDTH = 150;
-    private static final int TAB_HEIGHT = 22;
-    private static final int TAB_GAP = 4;
-    private static final int INSET = 4;
+    /** The tabs fill the sidebar's width, one under another with a line between them. */
+    private static final int TAB_HEIGHT = 26;
+    private static final int TAB_GAP = 1;
     private static final int CONTENT_PADDING = 10;
     private static final int FOOTER_HEIGHT = 18;
     private static final int SLIDER_WIDTH = 132;
@@ -142,11 +143,11 @@ public class SettingsScreen extends Screen {
         addRenderableWidget(new CloseButton(dialogX + dialogWidth - 6 - CloseButton.SIZE,
                 dialogY + (HEADER_HEIGHT - CloseButton.SIZE) / 2, Component.translatable("multiplayerspawners.settings.close"),
                 this::onClose));
-        int tabY = dialogY + HEADER_HEIGHT + INSET;
+        int tabY = dialogY + HEADER_HEIGHT;
         for (Tab each : Tab.values()) {
-            TabButton button = new TabButton(dialogX + 2 + INSET, tabY, sidebarWidth - 2 * INSET, TAB_HEIGHT,
+            TabButton button = new TabButton(dialogX + 2, tabY, sidebarWidth, TAB_HEIGHT,
                     Component.translatable("multiplayerspawners.settings.tab." + each.key), each.icon, each == tab,
-                    () -> switchTab(each));
+                    Surfaces.CONTENT, () -> switchTab(each));
             addRenderableWidget(button);
             tabY += TAB_HEIGHT + TAB_GAP;
         }
@@ -159,7 +160,7 @@ public class SettingsScreen extends Screen {
         for (Tab each : Tab.values()) {
             longest = Math.max(longest, this.font.width(Component.translatable("multiplayerspawners.settings.tab." + each.key)));
         }
-        int wanted = 2 * INSET + TabButton.TEXT_LEFT + longest + 8;
+        int wanted = TabButton.TEXT_LEFT + longest + 16;
         return Mth.clamp(wanted, SIDEBAR_MIN_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, dialogWidth / 3)));
     }
 
@@ -265,14 +266,34 @@ public class SettingsScreen extends Screen {
     }
 
     /**
-     * Places the rows below each other from the scroll position. A row not wholly shown is hidden,
-     * so that no part of it can be clicked outside the content.
+     * Places the rows below each other from the scroll position. A row partly scrolled out of the
+     * content is cut at its edge (see {@link #render}) and takes the mouse only where it shows.
      */
     private void layoutRows() {
         int y = contentTop - scroll;
         for (Row row : rows) {
+            row.top = y;
             row.place(y);
             y += row.height();
+        }
+    }
+
+    /** A row reached with the keyboard scrolls wholly into view. */
+    @Override
+    public void setFocused(GuiEventListener focused) {
+        super.setFocused(focused);
+        if (focused == null || !UiButton.keyboardFocused(true)) {
+            return;
+        }
+        for (Row row : rows) {
+            if (row.widget() == focused) {
+                int bottom = row.top + row.height();
+                int shift = row.top < contentTop ? row.top - contentTop : bottom > contentBottom ? bottom - contentBottom : 0;
+                if (shift != 0) {
+                    scroll = Mth.clamp(scroll + shift, 0, maxScroll());
+                    layoutRows();
+                }
+            }
         }
     }
 
@@ -350,6 +371,21 @@ public class SettingsScreen extends Screen {
         drawDialog(graphics);
         *///?}
         super.render(graphics, mouseX, mouseY, partialTick);
+        // The rows are drawn here rather than with the other widgets, cut to the content.
+        graphics.enableScissor(sidebarRight + 1, contentTop, dialogX + dialogWidth - 2, contentBottom);
+        for (Row row : rows) {
+            if (row.widget().visible) {
+                //? if >=26.1 {
+                row.widget().extractRenderState(graphics, mouseX, mouseY, partialTick);
+                //?} else {
+                /*row.widget().render(graphics, mouseX, mouseY, partialTick);
+                *///?}
+            }
+            if (row instanceof SliderSetting slider) {
+                slider.drawText(graphics);
+            }
+        }
+        graphics.disableScissor();
         drawLabels(graphics);
     }
 
@@ -364,13 +400,16 @@ public class SettingsScreen extends Screen {
         int bodyBottom = bottom - 2 - Surfaces.LIP_HEIGHT;
         graphics.fill(dialogX + 2, lineY + 1, sidebarRight, bodyBottom, Surfaces.SIDEBAR);
         graphics.fill(sidebarRight, lineY + 1, sidebarRight + 1, bodyBottom, Surfaces.SIDEBAR_EDGE);
+        for (int i = 1; i < Tab.values().length; i++) {
+            int ruleY = lineY + 1 + i * (TAB_HEIGHT + TAB_GAP) - TAB_GAP;
+            graphics.fill(dialogX + 2, ruleY, sidebarRight, ruleY + TAB_GAP, Surfaces.TAB_RULE);
+        }
         graphics.fill(sidebarRight + 1, lineY + 1, right - 2, bodyBottom, Surfaces.CONTENT);
         graphics.fill(sidebarRight + 1, contentBottom, right - 2, contentBottom + 1, Surfaces.ROW_LINE);
     }
 
     /**
-     * What is drawn over the widgets: the header's icon and title, the slider rows' names and
-     * descriptions, the scroll bar and the footer.
+     * What is drawn over the widgets: the header's icon and title, the scroll bar and the footer.
      */
     private void drawLabels(GuiGraphics graphics) {
         int middle = dialogY + 2 + (HEADER_HEIGHT - 3) / 2;
@@ -379,12 +418,6 @@ public class SettingsScreen extends Screen {
         int titleX = iconX + PixelIcon.width(PixelIcon.GEAR) + 6;
         PixelFont.draw(graphics, this.title, titleX, middle + 0.5f, 10, dialogX + dialogWidth - 12 - CloseButton.SIZE - titleX,
                 Surfaces.TEXT);
-
-        for (Row row : rows) {
-            if (row instanceof SliderSetting slider) {
-                slider.drawText(graphics);
-            }
-        }
 
         if (maxScroll() > 0) {
             int track = contentBottom - contentTop;
@@ -426,6 +459,8 @@ public class SettingsScreen extends Screen {
     /** One setting's row. */
     private abstract class Row {
         final String key;
+        /** Where the row starts, scrolled. */
+        int top;
 
         Row(String key) {
             this.key = key;
@@ -433,8 +468,11 @@ public class SettingsScreen extends Screen {
 
         abstract int height();
 
-        /** Moves the row to {@code y}, hiding it when it is not wholly shown. */
+        /** Moves the row to {@code y}, hiding it when none of it shows. */
         abstract void place(int y);
+
+        /** The row's control, which the screen draws and gives the mouse. */
+        abstract AbstractWidget widget();
 
         /** Shows the value the server holds. */
         abstract void refresh();
@@ -446,7 +484,7 @@ public class SettingsScreen extends Screen {
         }
 
         void show(AbstractWidget widget, int top, int bottom) {
-            widget.visible = top >= contentTop && bottom <= contentBottom;
+            widget.visible = bottom > contentTop && top < contentBottom;
         }
     }
 
@@ -457,10 +495,16 @@ public class SettingsScreen extends Screen {
         ToggleSetting(String key, String name, int width, IntFunction<Boolean> isOn, Function<Boolean, Integer> toValue) {
             super(key);
             this.isOn = isOn;
-            this.toggle = addRenderableWidget(new ToggleRow(contentLeft, contentTop, width,
+            this.toggle = addWidget(new ToggleRow(contentLeft, contentTop, width,
                     Component.translatable("multiplayerspawners.settings." + name),
                     Component.translatable("multiplayerspawners.settings." + name + ".description"),
                     isOn.apply(value()), on -> send(key, toValue.apply(on))));
+            toggle.clip(contentTop, contentBottom);
+        }
+
+        @Override
+        AbstractWidget widget() {
+            return toggle;
         }
 
         @Override
@@ -499,9 +543,15 @@ public class SettingsScreen extends Screen {
             int sliderWidth = Math.min(SLIDER_WIDTH, width / 2);
             this.layout = SettingRows.layout(font, Component.translatable("multiplayerspawners.settings." + name),
                     Component.translatable("multiplayerspawners.settings." + name + ".description"), width, sliderWidth);
-            this.slider = addRenderableWidget(new StepSlider(contentLeft + width - SettingRows.SIDE - sliderWidth,
+            this.slider = addWidget(new StepSlider(contentLeft + width - SettingRows.SIDE - sliderWidth,
                     contentTop, sliderWidth, steps, value(), describe));
+            slider.clip(contentTop, contentBottom);
             this.sent = slider.current();
+        }
+
+        @Override
+        AbstractWidget widget() {
+            return slider;
         }
 
         @Override

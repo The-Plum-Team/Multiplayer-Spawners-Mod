@@ -25,6 +25,28 @@ public abstract class UiButton extends Button {
 
     protected abstract void draw(GuiGraphics graphics, int mouseX, int mouseY, float partialTick);
 
+    /** Only the part between these heights takes the mouse: the rest is scrolled out of view. */
+    private int clipTop = Integer.MIN_VALUE;
+    private int clipBottom = Integer.MAX_VALUE;
+
+    public void clip(int top, int bottom) {
+        clipTop = top;
+        clipBottom = bottom;
+    }
+
+    @Override
+    public boolean isMouseOver(double mouseX, double mouseY) {
+        return mouseY >= clipTop && mouseY < clipBottom && super.isMouseOver(mouseX, mouseY);
+    }
+
+    // Before 1.21.4 a click is tested by clicked(), not by isMouseOver().
+    //? if <1.21.4 {
+    /*@Override
+    protected boolean clicked(double mouseX, double mouseY) {
+        return mouseY >= clipTop && mouseY < clipBottom && super.clicked(mouseX, mouseY);
+    }
+    *///?}
+
     //? if >=1.21.9 {
     @Override
     public void onPress(net.minecraft.client.input.InputWithModifiers input) {
