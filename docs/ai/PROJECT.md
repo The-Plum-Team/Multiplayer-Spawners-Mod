@@ -162,19 +162,19 @@ environment exists, then `shadow`, then `shared-build-and-e2e`).
 
 ## Releasing
 
-`.github/workflows/release.yml` publishes every jar of the release matrix to GitHub Releases,
-Modrinth (`ltl1ms4K`) and CurseForge (`1333296`).
+The kit's shared release ([RELEASE-PROTOCOL.md](https://github.com/The-Plum-Team/mod-base/blob/main/docs/RELEASE-PROTOCOL.md))
+publishes the production jars of the tested generation of `main`'s head to GitHub Releases,
+Modrinth (`ltl1ms4K`) and CurseForge (`1333296`); it compiles nothing. Its data is
+`scripts/ci/mod-base-release.json`; the managed caller is `.github/workflows/mod-base-release.yml`.
 
 1. Set `project.mod_version` in `release/release-matrix.json` and write
-   `release/changelogs/<mod_version>.md` (the marketplace changelog), then merge them to `main`.
-2. Push the tag `v<mod_version>` on that commit of `main`. The workflow checks the tag against the
-   matrix and main, builds and smoke-tests every version, stages the jars once
-   (`scripts/release/publication.py stage`: published file names, `SHA256SUMS`, changelog) and
-   publishes those bytes. The publishing jobs run in the `release` environment, which holds
-   `MODRINTH_TOKEN` and `CURSEFORGE_TOKEN` and deploys only from `v*` tags; they check out
-   nothing.
-3. If a publishing job fails, re-run only the failed jobs. Modrinth refuses a file it already has;
-   CurseForge does not, so check there first that the file is missing.
-
-A manual run of the workflow is a rehearsal: it builds and stages the bundle (artifact
-`release-bundle`) and publishes nothing.
+   `release/changelogs/<mod_version>.md` (the marketplace changelog), then merge them to `main`
+   and wait for that head's shared Build and packaged E2E to pass.
+2. Rehearse: `gh workflow run mod-base-release.yml --ref main -f publish=false`.
+3. Publish: `gh workflow run mod-base-release.yml --ref main -f publish=true`, then approve the
+   `release` environment once. It holds `MODRINTH_TOKEN` and `CURSEFORGE_TOKEN`, deploys only
+   from `main` and needs one reviewer. Nothing may merge to `main` between the dispatch and the
+   approval. The job creates the tag `v<mod_version>` and the GitHub Release only when every file
+   is verified on both marketplaces; the hourly schedule finishes what moderation holds back.
+4. If a step fails, dispatch with `publish=true` again: files already published are recognized by
+   content and never sent twice.
